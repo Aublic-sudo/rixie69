@@ -1,0 +1,222 @@
+19-Feb-26 10:42:33 - WARNING - Unclosed tags: <code> (x1) [html.py:134]
+19-Feb-26 10:42:35 - ERROR - Telegram says: [400 PEER_ID_INVALID] - The peer id being used is invalid or not known yet. Make sure you meet the peer before interacting with it  [dispatcher.py:253]
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/methods/advanced/resolve_peer.py", line 62, in resolve_peer
+    return await self.storage.get_peer_by_id(peer_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/storage/sqlite_storage.py", line 148, in get_peer_by_id
+    raise KeyError(f"ID not found: {peer_id}")
+KeyError: 'ID not found: -1003727821596'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/methods/advanced/resolve_peer.py", line 85, in resolve_peer
+    return await self.storage.get_peer_by_phone_number(peer_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/storage/sqlite_storage.py", line 174, in get_peer_by_phone_number
+    raise KeyError(f"Phone number not found: {phone_number}")
+KeyError: 'Phone number not found: -1003727821596'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyromod/listen/listen.py", line 93, in resolve_listener
+    await self.user_callback(client, message, *args)
+  File "/home/runner/workspace/main.py", line 1093, in txt_handler
+    await bot.send_message(channel_id, f"<b>-┈━═.•°✅ Completed ✅°•.═━┈-</b>\n<blockquote><b>🎯Batch Name : {b_name}</b></blockquote>\n<blockquote>🔗 Total URLs: {len(links)} \n┃   ┠🔴 Total Failed URLs: {failed_count}\n┃   ┠🟢 Total Successful URLs: {success_count}\n┃   ┃   ┠🎥 Total Video URLs: {video_count}\n┃   ┃   ┠📄 Total PDF URLs: {pdf_count}\n┃   ┃   ┠📸 Total IMAGE URLs: {img_count}</blockquote>\n")
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/methods/messages/send_message.py", line 144, in send_message
+    peer=await self.resolve_peer(chat_id),
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/methods/advanced/resolve_peer.py", line 87, in resolve_peer
+    raise PeerIdInvalid
+pyrogram.errors.exceptions.bad_request_400.PeerIdInvalid: Telegram says: [400 PEER_ID_INVALID] - The peer id being used is invalid or not known yet. Make sure you meet the peer before interacting with it 
+19-Feb-26 10:44:36 - ERROR - invalid literal for int() with base 10: '1-53' [dispatcher.py:253]
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyromod/listen/listen.py", line 93, in resolve_listener
+    await self.user_callback(client, message, *args)
+  File "/home/runner/workspace/main.py", line 546, in txt_handler
+    if int(raw_text) > len(links) :
+       ^^^^^^^^^^^^^
+ValueError: invalid literal for int() with base 10: '1-53'
+19-Feb-26 10:53:18 - ERROR - Telegram says: [400 MESSAGE_NOT_MODIFIED] - The message was not modified because you tried to edit it using the same content (caused by "messages.EditMessage") [dispatcher.py:253]
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "/home/runner/workspace/main.py", line 1155, in features_callback
+    await callback_query.message.edit_text(
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/types/messages_and_media/message.py", line 3061, in edit_text
+    return await self._client.edit_message_text(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/methods/messages/edit_message_text.py", line 82, in edit_message_text
+    r = await self.invoke(
+        ^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/methods/advanced/invoke.py", line 79, in invoke
+    r = await self.session.invoke(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/session/session.py", line 373, in invoke
+    return await self.send(query, timeout=timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/session/session.py", line 332, in send
+    RPCError.raise_it(result, type(data))
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/errors/rpc_error.py", line 91, in raise_it
+    raise getattr(
+pyrogram.errors.exceptions.bad_request_400.MessageNotModified: Telegram says: [400 MESSAGE_NOT_MODIFIED] - The message was not modified because you tried to edit it using the same content (caused by "messages.EditMessage")
+19-Feb-26 10:53:18 - ERROR - Telegram says: [400 MESSAGE_NOT_MODIFIED] - The message was not modified because you tried to edit it using the same content (caused by "messages.EditMessage") [dispatcher.py:253]
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "/home/runner/workspace/main.py", line 1155, in features_callback
+    await callback_query.message.edit_text(
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/types/messages_and_media/message.py", line 3061, in edit_text
+    return await self._client.edit_message_text(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/methods/messages/edit_message_text.py", line 82, in edit_message_text
+    r = await self.invoke(
+        ^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/methods/advanced/invoke.py", line 79, in invoke
+    r = await self.session.invoke(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/session/session.py", line 373, in invoke
+    return await self.send(query, timeout=timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/session/session.py", line 332, in send
+    RPCError.raise_it(result, type(data))
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/errors/rpc_error.py", line 91, in raise_it
+    raise getattr(
+pyrogram.errors.exceptions.bad_request_400.MessageNotModified: Telegram says: [400 MESSAGE_NOT_MODIFIED] - The message was not modified because you tried to edit it using the same content (caused by "messages.EditMessage")
+19-Feb-26 10:53:18 - ERROR - Telegram says: [400 MESSAGE_NOT_MODIFIED] - The message was not modified because you tried to edit it using the same content (caused by "messages.EditMessage") [dispatcher.py:253]
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "/home/runner/workspace/main.py", line 1155, in features_callback
+    await callback_query.message.edit_text(
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/types/messages_and_media/message.py", line 3061, in edit_text
+    return await self._client.edit_message_text(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/methods/messages/edit_message_text.py", line 82, in edit_message_text
+    r = await self.invoke(
+        ^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/methods/advanced/invoke.py", line 79, in invoke
+    r = await self.session.invoke(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/session/session.py", line 373, in invoke
+    return await self.send(query, timeout=timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/session/session.py", line 332, in send
+    RPCError.raise_it(result, type(data))
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/errors/rpc_error.py", line 91, in raise_it
+    raise getattr(
+pyrogram.errors.exceptions.bad_request_400.MessageNotModified: Telegram says: [400 MESSAGE_NOT_MODIFIED] - The message was not modified because you tried to edit it using the same content (caused by "messages.EditMessage")
+23-Feb-26 10:36:53 - WARNING - Unclosed tags: <code> (x1) [html.py:134]
+23-Feb-26 10:37:04 - WARNING - Unclosed tags: <code> (x1) [html.py:134]
+23-Feb-26 10:38:02 - WARNING - Unclosed tags: <code> (x1) [html.py:134]
+23-Feb-26 10:38:02 - WARNING - Unclosed tags: <code> (x1) [html.py:134]
+23-Feb-26 10:38:04 - ERROR - Telegram says: [400 PEER_ID_INVALID] - The peer id being used is invalid or not known yet. Make sure you meet the peer before interacting with it  [dispatcher.py:253]
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/methods/advanced/resolve_peer.py", line 62, in resolve_peer
+    return await self.storage.get_peer_by_id(peer_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/storage/sqlite_storage.py", line 148, in get_peer_by_id
+    raise KeyError(f"ID not found: {peer_id}")
+KeyError: 'ID not found: -1003727821596'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/methods/advanced/resolve_peer.py", line 85, in resolve_peer
+    return await self.storage.get_peer_by_phone_number(peer_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/storage/sqlite_storage.py", line 174, in get_peer_by_phone_number
+    raise KeyError(f"Phone number not found: {phone_number}")
+KeyError: 'Phone number not found: -1003727821596'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/dispatcher.py", line 240, in handler_worker
+    await handler.callback(self.client, *args)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyromod/listen/listen.py", line 93, in resolve_listener
+    await self.user_callback(client, message, *args)
+  File "/home/runner/workspace/main.py", line 1093, in txt_handler
+    await bot.send_message(channel_id, f"<b>-┈━═.•°✅ Completed ✅°•.═━┈-</b>\n<blockquote><b>🎯Batch Name : {b_name}</b></blockquote>\n<blockquote>🔗 Total URLs: {len(links)} \n┃   ┠🔴 Total Failed URLs: {failed_count}\n┃   ┠🟢 Total Successful URLs: {success_count}\n┃   ┃   ┠🎥 Total Video URLs: {video_count}\n┃   ┃   ┠📄 Total PDF URLs: {pdf_count}\n┃   ┃   ┠📸 Total IMAGE URLs: {img_count}</blockquote>\n")
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/methods/messages/send_message.py", line 144, in send_message
+    peer=await self.resolve_peer(chat_id),
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/methods/advanced/resolve_peer.py", line 87, in resolve_peer
+    raise PeerIdInvalid
+pyrogram.errors.exceptions.bad_request_400.PeerIdInvalid: Telegram says: [400 PEER_ID_INVALID] - The peer id being used is invalid or not known yet. Make sure you meet the peer before interacting with it 
+23-Feb-26 10:40:08 - WARNING - Unclosed tags: <code> (x1) [html.py:134]
+23-Feb-26 10:40:19 - WARNING - Unclosed tags: <code> (x1) [html.py:134]
+23-Feb-26 12:03:26 - ERROR - 'Client' object has no attribute 'lower' [dispatcher.py:229]
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/dispatcher.py", line 226, in handler_worker
+    if await handler.check(self.client, parsed_update):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyromod/listen/listen.py", line 103, in check
+    await self.filters(client, update)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/filters.py", line 81, in __call__
+    y = await client.loop.run_in_executor(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/nix/store/iizfzmqjdfvbyx82gqw92glb5zl6m4my-python3-3.12.12/lib/python3.12/concurrent/futures/thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/filters.py", line 807, in command
+    commands = {c if case_sensitive else c.lower() for c in commands}
+                                         ^^^^^^^
+AttributeError: 'Client' object has no attribute 'lower'
+23-Feb-26 12:03:26 - ERROR - 'Client' object has no attribute 'lower' [dispatcher.py:229]
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/dispatcher.py", line 226, in handler_worker
+    if await handler.check(self.client, parsed_update):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyromod/listen/listen.py", line 103, in check
+    await self.filters(client, update)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/filters.py", line 81, in __call__
+    y = await client.loop.run_in_executor(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/nix/store/iizfzmqjdfvbyx82gqw92glb5zl6m4my-python3-3.12.12/lib/python3.12/concurrent/futures/thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/filters.py", line 807, in command
+    commands = {c if case_sensitive else c.lower() for c in commands}
+                                         ^^^^^^^
+AttributeError: 'Client' object has no attribute 'lower'
+23-Feb-26 12:03:33 - ERROR - 'Client' object has no attribute 'lower' [dispatcher.py:229]
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/dispatcher.py", line 226, in handler_worker
+    if await handler.check(self.client, parsed_update):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyromod/listen/listen.py", line 103, in check
+    await self.filters(client, update)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/filters.py", line 81, in __call__
+    y = await client.loop.run_in_executor(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/nix/store/iizfzmqjdfvbyx82gqw92glb5zl6m4my-python3-3.12.12/lib/python3.12/concurrent/futures/thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/filters.py", line 807, in command
+    commands = {c if case_sensitive else c.lower() for c in commands}
+                                         ^^^^^^^
+AttributeError: 'Client' object has no attribute 'lower'
+23-Feb-26 12:03:33 - ERROR - 'Client' object has no attribute 'lower' [dispatcher.py:229]
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/dispatcher.py", line 226, in handler_worker
+    if await handler.check(self.client, parsed_update):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyromod/listen/listen.py", line 103, in check
+    await self.filters(client, update)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/filters.py", line 81, in __call__
+    y = await client.loop.run_in_executor(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/nix/store/iizfzmqjdfvbyx82gqw92glb5zl6m4my-python3-3.12.12/lib/python3.12/concurrent/futures/thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/pyrogram/filters.py", line 807, in command
+    commands = {c if case_sensitive else c.lower() for c in commands}
+                                         ^^^^^^^
+AttributeError: 'Client' object has no attribute 'lower'
