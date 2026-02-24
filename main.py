@@ -202,7 +202,7 @@ image_urls = [
 ]
 
 
-@bot.on_message(filters.command("cookies") & filters.private & auth_filter)
+@bot.on_message(filters.command("cookies") & auth_filter)
 async def cookies_handler(client: Client, m: Message):
     await m.reply_text("Please upload the cookies file (.txt format).",
                        quote=True)
