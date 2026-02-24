@@ -184,12 +184,12 @@ photozip = 'https://i.ibb.co/v6Vr7HCt/1000003297.png'
 # Inline keyboard for start command
 BUTTONSCONTACT = InlineKeyboardMarkup([[
     InlineKeyboardButton(text="📞 Contact",
-                         url="https://t.me/ITsGOLU_OWNER_BOT")
+                         url="https://t.me/Rixie HQ")
 ]])
 keyboard = InlineKeyboardMarkup([
     [
         InlineKeyboardButton(text="🛠️ Help",
-                             url="https://t.me/ITsGOLU_OWNER_BOT")
+                             url="https://t.me/RixieHQ")
     ],
 ])
 
@@ -323,12 +323,12 @@ async def start(bot: Client, m: Message):
                 await m.reply_photo(
                     photo=photologo,
                     caption=
-                    "**Mʏ Nᴀᴍᴇ [DRM Wɪᴢᴀʀᴅ 🦋](https://t.me/ITsGOLU_OWNER_BOT)\n\nYᴏᴜ ᴅᴏɴ'ᴛ ʜᴀᴠᴇ ᴀᴄᴄᴇꜱꜱ ᴛᴏ ᴜꜱᴇ ᴛʜɪꜱ ʙᴏᴛ\nCᴏɴᴛᴀᴄᴛ [𝐈𝐓'𝐬𝐆𝐎𝐋𝐔.™®](https://t.me/ITsGOLU_OWNER_BOT) ғᴏʀ ᴀᴄᴄᴇꜱꜱ**",
+                    "**Mʏ Nᴀᴍᴇ [DRM Wɪᴢᴀʀᴅ 🦋](https://t.me/RixieHQ)\n\nYᴏᴜ ᴅᴏɴ'ᴛ ʜᴀᴠᴇ ᴀᴄᴄᴇꜱꜱ ᴛᴏ ᴜꜱᴇ ᴛʜɪꜱ ʙᴏᴛ\nCᴏɴᴛᴀᴄᴛ Owner(https://t.me/RixieHQ) ғᴏʀ ᴀᴄᴄᴇꜱꜱ**",
                     reply_markup=InlineKeyboardMarkup(
                         [[
                             InlineKeyboardButton(
-                                "𝐈𝐓'𝐬𝐆𝐎𝐋𝐔.™®",
-                                url="https://t.me/ITsGOLU_OWNER_BOT")
+                                "OWNER",
+                                url="https://t.me/RoxieHQ")
                         ],
                          [
                              InlineKeyboardButton("ғᴇᴀᴛᴜʀᴇꜱ 🪔",
@@ -352,8 +352,8 @@ async def start(bot: Client, m: Message):
                 reply_markup=InlineKeyboardMarkup(
                     [[
                         InlineKeyboardButton(
-                            "𝐈𝐓'𝐬𝐆𝐎𝐋𝐔.™®",
-                            url="https://t.me/ITsGOLU_OWNER_BOT")
+                            "Owner",
+                            url="https://t.me/RixieHQ")
                     ],
                      [
                          InlineKeyboardButton("ғᴇᴀᴛᴜʀᴇꜱ 🪔",
@@ -386,12 +386,12 @@ auth_filter = filters.create(auth_check_filter)
 @bot.on_message(~auth_filter & filters.private & filters.command)
 async def unauthorized_handler(client, message: Message):
     await message.reply(
-        "<b>Mʏ Nᴀᴍᴇ [DRM Wɪᴢᴀʀᴅ 🦋](https://t.me/ITsGOLU_OWNER_BOT)</b>\n\n"
+        "<b>Mʏ Nᴀᴍᴇ [DRM Wɪᴢᴀʀᴅ 🦋](https://t.me/RixieHQ)</b>\n\n"
         "<blockquote>You need to have an active subscription to use this bot.\n"
         "Please contact admin to get premium access.</blockquote>",
         reply_markup=InlineKeyboardMarkup([[
             InlineKeyboardButton("💫 Get Premium Access",
-                                 url="https://t.me/ITsGOLU_OWNER_BOT")
+                                 url="https://t.me/RixieHQ")
         ]]))
 
 
@@ -1278,7 +1278,7 @@ async def txt_handler(bot: Client, m: Message):
                          f"├ 📑 ᴘᴅꜰꜱ : <code>{pdf_count}</code>\n"
                          f"├ 🖼️ ɪᴍᴀɢᴇꜱ : <code>{img_count}</code>\n"
                          "╰────────────────────────────\n\n"
-                         "<i>ᴇxᴛʀᴀᴄᴛᴇᴅ ʙʏ ᴡɪᴢᴀʀᴅ ʙᴏᴛꜱ 🤖</i>"))
+                         "<i>ᴇxᴛʀᴀᴄᴛᴇᴅ ʙʏ Rixie 🤖</i>"))
 
     else:
         await bot.send_message(
@@ -1403,7 +1403,7 @@ async def back_to_start_callback(client, callback_query: CallbackQuery):
         reply_markup=InlineKeyboardMarkup(
             [[
                 InlineKeyboardButton("𝐈𝐓'𝐬𝐆𝐎𝐋𝐔.™®",
-                                     url="https://t.me/ITsGOLU_OWNER_BOT")
+                                     url="https://t.me/RixieHQ")
             ],
              [
                  InlineKeyboardButton("ғᴇᴀᴛᴜʀᴇꜱ 🪔", callback_data="features"),
@@ -1501,12 +1501,20 @@ def setup_live(bot):
                             live_file = f"{name}.mp4"
 
                             await client.send_message(
-                                chat_id, f"🔴 LIVE STARTED\n{title}")
-
+                                chat_id,
+                                f"🔴 **LIVE STARTED**\n\n🎬 {title}\n\n⏬ Downloading Live Lecture..."
+                            )
+                            
                             cmd = [
-                                "ffmpeg", "-y", "-loglevel", "info", "-i", url,
-                                "-c", "copy", live_file
+                             "ffmpeg",
+                             "-y",
+                             "-i", url,
+                             "-c:v", "libx264",
+                             "-preset", "ultrafast",
+                             "-c:a", "aac",
+                             live_file
                             ]
+                                
 
                             proc = await asyncio.create_subprocess_exec(*cmd)
                             await proc.wait()
@@ -1518,11 +1526,20 @@ def setup_live(bot):
 
                             if live_file and os.path.exists(live_file):
 
+                                caption = (
+                                  f"🎥 <b>Vid Id :</b> 001\n"
+                                  f"<b>Video Title :</b> {title} [854x480p].mp4\n\n"
+                                  f"<blockquote>📚 Batch Name : {title}</blockquote>\n\n"
+                                  f"<b>Extracted by ➤ @RixieHQ</b>"
+                                )
+
                                 await client.send_video(
                                     chat_id,
                                     live_file,
-                                    caption=os.path.basename(live_file),
-                                    file_name=os.path.basename(live_file))
+                                    caption=caption,
+                                    file_name=os.path.basename(live_file),
+                                    supports_streaming=True
+                                )
 
                                 os.remove(live_file)
 
