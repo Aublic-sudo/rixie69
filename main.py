@@ -1517,8 +1517,8 @@ def setup_live(bot):
         ACTIVE_LIVES[user_id] = True
         asyncio.create_task(watcher())
 
-async def watcher():
-
+    async def watcher():
+ 
     current_live = None
     live_file = None
     proc = None
