@@ -1412,6 +1412,7 @@ async def back_to_start_callback(client, callback_query: CallbackQuery):
 
 
 # ================= LIVE AUTO RECORDER =================
+# ================= LIVE AUTO RECORDER =================
 ACTIVE_LIVES = {}
 
 def fetch_live(api_base, course_id, token):
@@ -1433,7 +1434,6 @@ def fetch_live(api_base, course_id, token):
         try:
             r = requests.get(api_base + ep, headers=headers, timeout=10)
 
-            # ❌ Invalid API / TOKEN
             if r.status_code in [401,403]:
                 return "AUTH_ERROR", None, None
 
@@ -1459,6 +1459,7 @@ def fetch_live(api_base, course_id, token):
             print("LIVE FETCH ERROR:", e)
 
     return None,None,None
+
 
 def setup_live(bot):
 
@@ -1503,7 +1504,7 @@ def setup_live(bot):
                 upload_chat = int(chat_input)
                 message_thread_id = None
 
-        # ===== API TEST BEFORE START =====
+        # ===== API TEST =====
         test_title,_,_ = await asyncio.to_thread(fetch_live,api,course_id,token)
 
         if test_title == "AUTH_ERROR":
@@ -1516,97 +1517,100 @@ def setup_live(bot):
 
         ACTIVE_LIVES[user_id] = True
 
-async def watcher():
+        # ================= WATCHER =================
+        async def watcher():
 
-    current_live = None
-    live_file = None
-    proc = None
-    live_missing_count = 0   # 🔥 safety counte
-    last_title = None
+            current_live = None
+            live_file = None
+            proc = None
+            live_missing_count = 0
+            last_title = None
 
-    try:
-        while True:
             try:
-                title, sid, url = await asyncio.to_thread(
-                    fetch_live, api, course_id, token)
+                while True:
+                    try:
+                        title, sid, url = await asyncio.to_thread(
+                            fetch_live, api, course_id, token)
 
-                if title == "AUTH_ERROR":
-                    await client.send_message(m.chat.id,"❌ AUTH TOKEN EXPIRED")
-                    break
+                        if title == "AUTH_ERROR":
+                            await client.send_message(m.chat.id,"❌ AUTH TOKEN EXPIRED")
+                            break
 
-                # ================= LIVE START =================
-                if sid and sid != current_live:
+                        # ================= LIVE START =================
+                        if sid and sid != current_live:
 
-                    live_missing_count = 0
-                    current_live = sid
-                    last_title = title
+                            live_missing_count = 0
+                            current_live = sid
+                            last_title = title
 
-                    safe_title = title.replace("/", " ").replace(":","").strip()
-                    live_file = f"{safe_title}.mp4"
+                            safe_title = (title or "LIVE").replace("/", " ").replace(":","").strip()
+                            live_file = f"{safe_title}.mp4"
 
-                    await client.send_message(
-                        upload_chat,
-                        f"🔴 **LIVE STARTED**\n\n🎬 {title}\n\n⏬ Downloading Live Lecture...",
-                        message_thread_id=message_thread_id
-                    )
-
-                    cmd = [
-                        "ffmpeg","-y","-i",url,
-                        "-c:v","libx264","-preset","ultrafast",
-                        "-c:a","aac",
-                        live_file
-                    ]
-
-                    proc = await asyncio.create_subprocess_exec(*cmd)
-
-                # ================= LIVE END CHECK =================
-                if not sid and current_live:
-
-                    live_missing_count += 1
-
-                    # 🔥 wait 3 cycles before ending
-                    if live_missing_count >= 3:
-
-                        await client.send_message(
-                            upload_chat,
-                            "📤 Uploading LIVE...",
-                            message_thread_id=message_thread_id
-                        )
-
-                        if proc:
-                            proc.kill()
-                            proc = None
-
-                        if live_file and os.path.exists(live_file):
-
-                            caption = (
-                              f"🎥 <b>Vid Id :</b> 001\n"
-                              f"<b>Video Title :</b> {title} [854x480p].mp4\n\n"
-                              f"<blockquote>📚 Batch Name : {title}</blockquote>\n\n"
-                              f"<b>Extracted by ➤ @RixieHQ</b>"
-                            )
-
-                            await client.send_video(
+                            await client.send_message(
                                 upload_chat,
-                                live_file,
-                                caption=caption,
-                                supports_streaming=True,
+                                f"🔴 **LIVE STARTED**\n\n🎬 {title}\n\n⏬ Downloading Live Lecture...",
                                 message_thread_id=message_thread_id
                             )
 
-                            os.remove(live_file)
+                            cmd = [
+                                "ffmpeg","-y","-i",url,
+                                "-c:v","libx264","-preset","ultrafast",
+                                "-c:a","aac",
+                                live_file
+                            ]
 
-                        current_live = None
-                        live_file = None
-                        live_missing_count = 0
+                            proc = await asyncio.create_subprocess_exec(*cmd)
 
-            except Exception as e:
-                print("WATCHER ERROR:", e)
+                        # ================= LIVE END =================
+                        if not sid and current_live:
 
-            await asyncio.sleep(20)
+                            live_missing_count += 1
 
-    finally:
-        ACTIVE_LIVES.pop(user_id,None)
+                            if live_missing_count >= 3:
+
+                                await client.send_message(
+                                    upload_chat,
+                                    "📤 Uploading LIVE...",
+                                    message_thread_id=message_thread_id
+                                )
+
+                                if proc:
+                                    proc.kill()
+                                    proc = None
+
+                                if live_file and os.path.exists(live_file):
+
+                                    caption = (
+                                      f"🎥 <b>Vid Id :</b> 001\n"
+                                      f"<b>Video Title :</b> {last_title} [854x480p].mp4\n\n"
+                                      f"<blockquote>📚 Batch Name : {last_title}</blockquote>\n\n"
+                                      f"<b>Extracted by ➤ @RixieHQ</b>"
+                                    )
+
+                                    await client.send_video(
+                                        upload_chat,
+                                        live_file,
+                                        caption=caption,
+                                        supports_streaming=True,
+                                        message_thread_id=message_thread_id
+                                    )
+
+                                    os.remove(live_file)
+
+                                current_live = None
+                                live_file = None
+                                live_missing_count = 0
+
+                    except Exception as e:
+                        print("WATCHER ERROR:", e)
+
+                    await asyncio.sleep(20)
+
+            finally:
+                ACTIVE_LIVES.pop(user_id,None)
+
+        asyncio.create_task(watcher())
+
 
 print("Bot Started...")
 setup_live(bot)
