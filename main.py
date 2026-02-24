@@ -1313,8 +1313,15 @@ async def txt_handler(bot: Client, m: Message):
         )
 
 
-@bot.on_message(filters.text & filters.private & auth_filter & ~filters.command(
-    ["start", "drm", "addlive", "plan", "id", "t2t", "t2h", "logs"]))
+@bot.on_message(
+    filters.text
+    & filters.private
+    & auth_filter
+    & ~filters.command(
+        ["start", "drm", "addlive", "process", "stoplive", "killalllive",
+         "plan", "id", "t2t", "t2h", "logs"]
+    )
+)
 async def text_handler(bot: Client, m: Message):
     if m.from_user.is_bot:
         return
