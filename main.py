@@ -83,6 +83,39 @@ bot = Client("ugx",
 # Register command handlers
 register_clean_handler(bot)
 
+def auth_check_filter(_, client, message):
+
+    try:
+
+        # 🔓 Public commands (sab use kar sakte)
+        if message.command:
+            cmd = message.command[0].lower()
+
+            if cmd in ["start", "plan", "id"]:
+                return True
+
+        # 👑 Admin always allowed
+        if message.from_user and db.is_admin(message.from_user.id):
+            return True
+
+        # 📢 Channel check
+        if message.chat.type == "channel":
+            return db.is_channel_authorized(
+                message.chat.id,
+                client.me.username
+            )
+
+        # 👤 User subscription check
+        return db.is_user_authorized(
+            message.from_user.id,
+            client.me.username
+        )
+
+    except Exception:
+        return False
+
+
+auth_filter = filters.create(auth_check_filter)
 
 @bot.on_message(filters.command("setlog") & filters.private)
 async def set_log_channel_cmd(client: Client, message: Message):
@@ -202,7 +235,7 @@ image_urls = [
 ]
 
 
-@bot.on_message(filters.command("cookies") & auth_filter)
+@bot.on_message(filters.command("cookies") & filters.private & auth_filter)
 async def cookies_handler(client: Client, m: Message):
     await m.reply_text("Please upload the cookies file (.txt format).",
                        quote=True)
@@ -366,39 +399,7 @@ async def start(bot: Client, m: Message):
         print(f"Error in start command: {str(e)}")
 
 
-def auth_check_filter(_, client, message):
 
-    try:
-
-        # 🔓 Public commands (sab use kar sakte)
-        if message.command:
-            cmd = message.command[0].lower()
-
-            if cmd in ["start", "plan", "id"]:
-                return True
-
-        # 👑 Admin always allowed
-        if message.from_user and db.is_admin(message.from_user.id):
-            return True
-
-        # 📢 Channel check
-        if message.chat.type == "channel":
-            return db.is_channel_authorized(
-                message.chat.id,
-                client.me.username
-            )
-
-        # 👤 User subscription check
-        return db.is_user_authorized(
-            message.from_user.id,
-            client.me.username
-        )
-
-    except Exception:
-        return False
-
-
-auth_filter = filters.create(auth_check_filter)
 
 
 @bot.on_message(~auth_filter & filters.private & filters.command)
@@ -426,8 +427,11 @@ async def call_html_handler(bot: Client, message: Message):
 
 
 @bot.on_message(filters.command(["logs"]) & auth_filter)
-async def send_logs(client: Client, m: Message):  # Correct parameter name
+async def send_logs(client: Client, m: Message):
 
+    
+    bot_info = await client.get_me()
+    bot_username = bot_info.username
     # Check authorization
     if m.chat.type == "channel":
         if not db.is_channel_authorized(m.chat.id, bot_username):
@@ -1508,7 +1512,7 @@ async def multi_watcher(pid, api, course_id, token, upload_chat, thread_id, clie
                 current_live = sid
                 last_title = title
 
-                safe_title = (title or "LIVE").replace("/", " ").replace(":","").strip()
+                safe_title = re.sub(r'[\\/*?:"<>|]', "", title or "LIVE").strip()
                 live_file = f"{safe_title}_{pid}.mp4"
 
                 await client.send_message(
@@ -1525,6 +1529,9 @@ async def multi_watcher(pid, api, course_id, token, upload_chat, thread_id, clie
                 ]
 
                 proc = await asyncio.create_subprocess_exec(*cmd)
+
+                if pid in ACTIVE_LIVES:
+                   ACTIVE_LIVES[pid]["proc"] = proc
 
             # 🟢 LIVE END
             if not sid and current_live:
@@ -1615,7 +1622,8 @@ def setup_live(bot):
             "api": api,
             "course": course_id,
             "upload": upload_chat,
-            "task": task
+            "task": task,
+            "proc": None
         }
 
     # ================= PROCESS LIST =================
@@ -1628,7 +1636,7 @@ def setup_live(bot):
 
         txt = "**🚀 ACTIVE LIVE PROCESSES**\n\n"
 
-        for pid,data in ACTIVE_LIVES.items():
+        for pid, data in ACTIVE_LIVES.items():
 
             txt += (
                 f"🆔 Process ID : {pid}\n"
@@ -1639,7 +1647,8 @@ def setup_live(bot):
             )
 
         await m.reply_text(txt)
-      # ================= STOP SINGLE PROCESS =================
+
+    # ================= STOP SINGLE PROCESS =================
 
     @bot.on_message(filters.command("stoplive") & auth_filter)
     async def stop_live_process(client, m: Message):
@@ -1656,8 +1665,12 @@ def setup_live(bot):
                 return await m.reply_text("❌ Process not found")
 
             task = ACTIVE_LIVES[pid]["task"]
+            proc = ACTIVE_LIVES[pid].get("proc")
 
             task.cancel()
+
+            if proc:
+                proc.kill()
 
             ACTIVE_LIVES.pop(pid, None)
 
@@ -1665,7 +1678,6 @@ def setup_live(bot):
 
         except Exception as e:
             await m.reply_text(f"❌ Error : {e}")
-
 
     # ================= STOP ALL PROCESS =================
 
@@ -1677,12 +1689,15 @@ def setup_live(bot):
 
         stopped = 0
 
-        for pid,data in list(ACTIVE_LIVES.items()):
-
+        for pid, data in list(ACTIVE_LIVES.items()):
             try:
+                if data.get("proc"):
+                    data["proc"].kill()
+
                 data["task"].cancel()
                 ACTIVE_LIVES.pop(pid, None)
                 stopped += 1
+
             except:
                 pass
 
