@@ -1414,7 +1414,6 @@ async def back_to_start_callback(client, callback_query: CallbackQuery):
 # ================= LIVE AUTO RECORDER =================
 ACTIVE_LIVES = {}
 
-
 def fetch_live(api_base, course_id, token):
 
     headers = {
@@ -1433,6 +1432,11 @@ def fetch_live(api_base, course_id, token):
     for ep in endpoints:
         try:
             r = requests.get(api_base + ep, headers=headers, timeout=10)
+
+            # ❌ Invalid API / TOKEN
+            if r.status_code in [401,403]:
+                return "AUTH_ERROR", None, None
+
             if r.status_code != 200:
                 continue
 
@@ -1441,18 +1445,20 @@ def fetch_live(api_base, course_id, token):
             if j.get("data") and j["data"].get("live"):
                 item = j["data"]["live"][0]
 
-                title = item.get("Title", "LIVE")
+                title = item.get("Title","LIVE")
                 sid = item.get("recording_schedule")
+
+                if not sid:
+                    return None,None,None
 
                 url = f"https://liveclasses.cloud-front.in/live/{sid}_480p.m3u8"
 
-                return title, sid, url
+                return title,sid,url
 
         except Exception as e:
             print("LIVE FETCH ERROR:", e)
 
-    return None, None, None
-
+    return None,None,None
 
 def setup_live(bot):
 
@@ -1464,16 +1470,47 @@ def setup_live(bot):
         if user_id in ACTIVE_LIVES:
             return await m.reply_text("⚠️ LIVE watcher already running")
 
-        await m.reply_text("SEND API HOST")
+        # ================= INPUTS =================
+
+        await m.reply_text("🌐 Send API HOST")
         api = (await client.listen(m.chat.id)).text.strip()
 
-        await m.reply_text("SEND COURSE ID")
+        await m.reply_text("📚 Send COURSE ID")
         course_id = (await client.listen(m.chat.id)).text.strip()
 
-        await m.reply_text("SEND AUTH TOKEN")
+        await m.reply_text("🔐 Send AUTH TOKEN")
         token = (await client.listen(m.chat.id)).text.strip()
 
-        chat_id = m.chat.id
+        await m.reply_text(
+            "📤 Send CHAT ID where video should upload\n\n"
+            "Send `/d` for default (same chat)\n"
+            "Supports topics like : -100xxxx/34",
+            quote=True
+        )
+
+        chat_input = (await client.listen(m.chat.id)).text.strip()
+
+        # ===== chat id parse =====
+        if chat_input == "/d":
+            upload_chat = m.chat.id
+            message_thread_id = None
+        else:
+            if "/" in chat_input:
+                base, topic = chat_input.split("/")
+                upload_chat = int(base)
+                message_thread_id = int(topic)
+            else:
+                upload_chat = int(chat_input)
+                message_thread_id = None
+
+        # ===== API TEST BEFORE START =====
+        test_title,_,_ = await asyncio.to_thread(fetch_live,api,course_id,token)
+
+        if test_title == "AUTH_ERROR":
+            return await m.reply_text("❌ Invalid AUTH TOKEN or API HOST")
+
+        if test_title is None:
+            await m.reply_text("⚠️ No LIVE found currently — watcher still started")
 
         await m.reply_text("✅ LIVE WATCHER STARTED 🔥")
 
@@ -1491,38 +1528,41 @@ def setup_live(bot):
                         title, sid, url = await asyncio.to_thread(
                             fetch_live, api, course_id, token)
 
+                        if title == "AUTH_ERROR":
+                            await client.send_message(m.chat.id,"❌ AUTH TOKEN EXPIRED")
+                            break
+
                         if sid and sid != current_live:
 
                             current_live = sid
 
-                            safe_title = title.replace("/", " ").replace(
-                                ":", "").strip()
-                            name = safe_title
-                            live_file = f"{name}.mp4"
+                            safe_title = title.replace("/", " ").replace(":","").strip()
+                            live_file = f"{safe_title}.mp4"
 
                             await client.send_message(
-                                chat_id,
-                                f"🔴 **LIVE STARTED**\n\n🎬 {title}\n\n⏬ Downloading Live Lecture..."
+                                upload_chat,
+                                f"🔴 **LIVE STARTED**\n\n🎬 {title}\n\n⏬ Downloading Live Lecture...",
+                                message_thread_id=message_thread_id
                             )
-                            
+
                             cmd = [
-                             "ffmpeg",
-                             "-y",
-                             "-i", url,
-                             "-c:v", "libx264",
-                             "-preset", "ultrafast",
-                             "-c:a", "aac",
-                             live_file
+                                "ffmpeg","-y","-i",url,
+                                "-c:v","libx264","-preset","ultrafast",
+                                "-c:a","aac",
+                                live_file
                             ]
-                                
 
                             proc = await asyncio.create_subprocess_exec(*cmd)
                             await proc.wait()
 
+                        # ========= LIVE END =========
                         if not sid and current_live:
 
-                            await client.send_message(chat_id,
-                                                      "📤 Uploading LIVE...")
+                            await client.send_message(
+                                upload_chat,
+                                "📤 Uploading LIVE...",
+                                message_thread_id=message_thread_id
+                            )
 
                             if live_file and os.path.exists(live_file):
 
@@ -1534,11 +1574,11 @@ def setup_live(bot):
                                 )
 
                                 await client.send_video(
-                                    chat_id,
+                                    upload_chat,
                                     live_file,
                                     caption=caption,
-                                    file_name=os.path.basename(live_file),
-                                    supports_streaming=True
+                                    supports_streaming=True,
+                                    message_thread_id=message_thread_id
                                 )
 
                                 os.remove(live_file)
@@ -1552,7 +1592,7 @@ def setup_live(bot):
                     await asyncio.sleep(20)
 
             finally:
-                ACTIVE_LIVES.pop(user_id, None)
+                ACTIVE_LIVES.pop(user_id,None)
 
         asyncio.create_task(watcher())
 
