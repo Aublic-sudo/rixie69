@@ -1515,6 +1515,7 @@ def setup_live(bot):
         await m.reply_text("✅ LIVE WATCHER STARTED 🔥")
 
         ACTIVE_LIVES[user_id] = True
+        asyncio.create_task(watcher())
 
 async def watcher():
 
