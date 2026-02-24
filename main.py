@@ -1591,7 +1591,9 @@ def setup_live(bot):
         await m.reply_text("🔐 Send AUTH TOKEN")
         token = (await client.listen(m.chat.id)).text.strip()
 
-        await m.reply_text("📤 Send CHAT ID where upload\nSend /d for same chat")
+        await m.reply_text(
+          "📤 Send the CHAT ID where the video should be uploaded.\n\nSend /d to use the current chat."
+        )
 
         chat_input = (await client.listen(m.chat.id)).text.strip()
 
