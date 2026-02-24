@@ -1402,7 +1402,7 @@ async def back_to_start_callback(client, callback_query: CallbackQuery):
         ),
         reply_markup=InlineKeyboardMarkup(
             [[
-                InlineKeyboardButton("𝐈𝐓'𝐬𝐆𝐎𝐋𝐔.™®",
+                InlineKeyboardButton("OWNER",
                                      url="https://t.me/RixieHQ")
             ],
              [
@@ -1522,6 +1522,7 @@ async def watcher():
     live_file = None
     proc = None
     live_missing_count = 0   # 🔥 safety counter
+    last_title = None
 
     try:
         while True:
@@ -1538,6 +1539,8 @@ async def watcher():
 
                     live_missing_count = 0
                     current_live = sid
+                    last_title = title   
+                  
 
                     safe_title = title.replace("/", " ").replace(":","").strip()
                     live_file = f"{safe_title}.mp4"
