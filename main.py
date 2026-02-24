@@ -1524,21 +1524,31 @@ async def multi_watcher(pid, api, course_id, token, upload_chat, thread_id, clie
 
                 await client.send_message(
                     upload_chat,
-                    f"🔴 LIVE STARTED\n🆔 Process : {pid}\n🎬 {title}",
+                    
+                    f"🔴 <b>LIVE STARTED</b>\n"
+                    f"🆔 Process : {str(pid).zfill(3)}\n"
+                    f"🎬 {title}\n"
+                    f"⬇️ <i>Recording & Downloading Started...</i>",
                     message_thread_id=thread_id
                 )
 
                 cmd = [
-                    "ffmpeg","-y","-i",url,
-                    "-c:v","libx264","-preset","ultrafast",
-                    "-c:a","aac",
+                    "ffmpeg",
+                    "-y",
+                    "-fflags", "+genpts",
+                    "-i", url,
+                    "-c:v", "libx264",
+                    "-preset", "ultrafast",
+                    "-c:a", "aac",
+                    "-pix_fmt", "yuv420p",
+                    "-movflags", "+faststart",
                     live_file
                 ]
 
                 proc = await asyncio.create_subprocess_exec(*cmd)
 
                 if pid in ACTIVE_LIVES:
-                   ACTIVE_LIVES[pid]["proc"] = proc
+                    ACTIVE_LIVES[pid]["proc"] = proc
 
             # 🟢 LIVE END
             if not sid and current_live:
@@ -1553,10 +1563,17 @@ async def multi_watcher(pid, api, course_id, token, upload_chat, thread_id, clie
 
                     if live_file and os.path.exists(live_file):
 
+                        caption = (
+                            f"🎥 <b>Vid Id :</b> {str(pid).zfill(3)}\n"
+                            f"<b>Video Title :</b> {last_title} [480p].mp4\n\n"
+                            f"<blockquote>📚 Batch Name : {last_title}</blockquote>\n\n"
+                            f"<b>Extracted by ➤ @RixieHQ</b>"
+                        )
+
                         await client.send_video(
                             upload_chat,
                             live_file,
-                            caption=f"🎥 {last_title}\n🆔 Process : {pid}",
+                            caption=caption,
                             supports_streaming=True,
                             message_thread_id=thread_id
                         )
@@ -1650,7 +1667,7 @@ def setup_live(bot):
             txt += (
                 f"🆔 Process ID : {pid}\n"
                 f"🌐 API : {data['api']}\n"
-                f"📚 Course : {data['course']}\n"
+                f"📚 Course_id : {data['course']}\n"
                 f"📤 Upload Chat : {data['upload']}\n"
                 f"──────────────\n"
             )
