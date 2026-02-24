@@ -45,7 +45,7 @@ Go to https://uptimerobot.com/ and add a monitor to keep your bot alive.
 Use these settings when adding a monitor:</b>
 <br>
 <br>
-<img src="https://i.ibb.co/v6Vr7HCt/1000003297.png" alt="render template">
+<img src="" alt="render template">
 <br>
 <br>
 <b>Click on the below button to deploy directly to render ↓</b>
