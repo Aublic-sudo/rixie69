@@ -1516,86 +1516,95 @@ def setup_live(bot):
 
         ACTIVE_LIVES[user_id] = True
 
-        async def watcher():
+async def watcher():
 
-            current_live = None
-            live_file = None
+    current_live = None
+    live_file = None
+    proc = None
+    live_missing_count = 0   # 🔥 safety counter
 
+    try:
+        while True:
             try:
-                while True:
+                title, sid, url = await asyncio.to_thread(
+                    fetch_live, api, course_id, token)
 
-                    try:
-                        title, sid, url = await asyncio.to_thread(
-                            fetch_live, api, course_id, token)
+                if title == "AUTH_ERROR":
+                    await client.send_message(m.chat.id,"❌ AUTH TOKEN EXPIRED")
+                    break
 
-                        if title == "AUTH_ERROR":
-                            await client.send_message(m.chat.id,"❌ AUTH TOKEN EXPIRED")
-                            break
+                # ================= LIVE START =================
+                if sid and sid != current_live:
 
-                        if sid and sid != current_live:
+                    live_missing_count = 0
+                    current_live = sid
 
-                            current_live = sid
+                    safe_title = title.replace("/", " ").replace(":","").strip()
+                    live_file = f"{safe_title}.mp4"
 
-                            safe_title = title.replace("/", " ").replace(":","").strip()
-                            live_file = f"{safe_title}.mp4"
+                    await client.send_message(
+                        upload_chat,
+                        f"🔴 **LIVE STARTED**\n\n🎬 {title}\n\n⏬ Downloading Live Lecture...",
+                        message_thread_id=message_thread_id
+                    )
 
-                            await client.send_message(
+                    cmd = [
+                        "ffmpeg","-y","-i",url,
+                        "-c:v","libx264","-preset","ultrafast",
+                        "-c:a","aac",
+                        live_file
+                    ]
+
+                    proc = await asyncio.create_subprocess_exec(*cmd)
+
+                # ================= LIVE END CHECK =================
+                if not sid and current_live:
+
+                    live_missing_count += 1
+
+                    # 🔥 wait 3 cycles before ending
+                    if live_missing_count >= 3:
+
+                        await client.send_message(
+                            upload_chat,
+                            "📤 Uploading LIVE...",
+                            message_thread_id=message_thread_id
+                        )
+
+                        if proc:
+                            proc.kill()
+                            proc = None
+
+                        if live_file and os.path.exists(live_file):
+
+                            caption = (
+                              f"🎥 <b>Vid Id :</b> 001\n"
+                              f"<b>Video Title :</b> {title} [854x480p].mp4\n\n"
+                              f"<blockquote>📚 Batch Name : {title}</blockquote>\n\n"
+                              f"<b>Extracted by ➤ @RixieHQ</b>"
+                            )
+
+                            await client.send_video(
                                 upload_chat,
-                                f"🔴 **LIVE STARTED**\n\n🎬 {title}\n\n⏬ Downloading Live Lecture...",
+                                live_file,
+                                caption=caption,
+                                supports_streaming=True,
                                 message_thread_id=message_thread_id
                             )
 
-                            cmd = [
-                                "ffmpeg","-y","-i",url,
-                                "-c:v","libx264","-preset","ultrafast",
-                                "-c:a","aac",
-                                live_file
-                            ]
+                            os.remove(live_file)
 
-                            proc = await asyncio.create_subprocess_exec(*cmd)
-                            await proc.wait()
+                        current_live = None
+                        live_file = None
+                        live_missing_count = 0
 
-                        # ========= LIVE END =========
-                        if not sid and current_live:
+            except Exception as e:
+                print("WATCHER ERROR:", e)
 
-                            await client.send_message(
-                                upload_chat,
-                                "📤 Uploading LIVE...",
-                                message_thread_id=message_thread_id
-                            )
+            await asyncio.sleep(20)
 
-                            if live_file and os.path.exists(live_file):
-
-                                caption = (
-                                  f"🎥 <b>Vid Id :</b> 001\n"
-                                  f"<b>Video Title :</b> {title} [854x480p].mp4\n\n"
-                                  f"<blockquote>📚 Batch Name : {title}</blockquote>\n\n"
-                                  f"<b>Extracted by ➤ @RixieHQ</b>"
-                                )
-
-                                await client.send_video(
-                                    upload_chat,
-                                    live_file,
-                                    caption=caption,
-                                    supports_streaming=True,
-                                    message_thread_id=message_thread_id
-                                )
-
-                                os.remove(live_file)
-
-                            current_live = None
-                            live_file = None
-
-                    except Exception as e:
-                        print("WATCHER ERROR:", e)
-
-                    await asyncio.sleep(20)
-
-            finally:
-                ACTIVE_LIVES.pop(user_id,None)
-
-        asyncio.create_task(watcher())
-
+    finally:
+        ACTIVE_LIVES.pop(user_id,None)
 
 print("Bot Started...")
 setup_live(bot)
