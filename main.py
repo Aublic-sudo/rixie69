@@ -1535,13 +1535,15 @@ async def multi_watcher(pid, api, course_id, token, upload_chat, thread_id, clie
                 cmd = [
                     "ffmpeg",
                     "-y",
-                    "-fflags", "+genpts",
+                    "-fflags","+genpts",
                     "-i", url,
-                    "-c:v", "libx264",
-                    "-preset", "ultrafast",
-                    "-c:a", "aac",
-                    "-pix_fmt", "yuv420p",
-                    "-movflags", "+faststart",
+
+                    "-c","copy",
+                    "-bsf:a","aac_adtstoasc",
+
+                    "-movflags","+faststart",   # ⭐ Thumbnail fix
+                    "-map","0",
+
                     live_file
                 ]
 
