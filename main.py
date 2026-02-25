@@ -1560,7 +1560,8 @@ async def multi_watcher(pid, api, course_id, token, upload_chat, thread_id, clie
                 if live_missing_count >= 3:
 
                     if proc:
-                        proc.kill()
+                        proc.terminate()
+                        await proc.wait()
                         proc = None
 
                     if live_file and os.path.exists(live_file):
