@@ -278,9 +278,84 @@ def time_name():
 
 
 async def fast_download(url, name):
-
+    """Fast direct download implementation without yt-dlp"""
     max_retries = 5
     retry_count = 0
+    success = False
+    
+    while not success and retry_count < max_retries:
+        try:
+            if "m3u8" in url:
+                # Handle m3u8 files
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url) as response:
+                        m3u8_text = await response.text()
+                        
+                    playlist = m3u8.loads(m3u8_text)
+                    if playlist.is_endlist:
+                        # Direct download of segments
+                        base_url = url.rsplit('/', 1)[0] + '/'
+                        
+                        # Download all segments concurrently
+                        segments = []
+                        async with aiohttp.ClientSession() as session:
+                            tasks = []
+                            for segment in playlist.segments:
+                                segment_url = urljoin(base_url, segment.uri)
+                                task = asyncio.create_task(session.get(segment_url))
+                                tasks.append(task)
+                            
+                            responses = await asyncio.gather(*tasks)
+                            for response in responses:
+                                segment_data = await response.read()
+                                segments.append(segment_data)
+                        
+                        # Merge segments and save
+                        output_file = f"{name}.mp4"
+                        with open(output_file, 'wb') as f:
+                            for segment in segments:
+                                f.write(segment)
+                        
+                        success = True
+                        return [output_file]
+                    else:
+                        # For live streams, fall back to ffmpeg
+                        cmd = f'ffmpeg -hide_banner -loglevel error -stats -i "{url}" -c copy -bsf:a aac_adtstoasc -movflags +faststart "{name}.mp4"'
+                        subprocess.run(cmd, shell=True)
+                        if os.path.exists(f"{name}.mp4"):
+                            success = True
+                            return [f"{name}.mp4"]
+            else:
+                # For direct video URLs
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url) as response:
+                        if response.status == 200:
+                            output_file = f"{name}.mp4"
+                            with open(output_file, 'wb') as f:
+                                while True:
+                                    chunk = await response.content.read(1024*1024)  # 1MB chunks
+                                    if not chunk:
+                                        break
+                                    f.write(chunk)
+                            success = True
+                            return [output_file]
+            
+            if not success:
+                print(f"\nAttempt {retry_count + 1} failed, retrying in 3 seconds...")
+                retry_count += 1
+                await asyncio.sleep(3)
+                
+        except Exception as e:
+            print(f"\nError during attempt {retry_count + 1}: {str(e)}")
+            retry_count += 1
+            await asyncio.sleep(3)
+    
+    return None
+
+async def download_video(url, cmd, name):
+
+    max_retries = 3
+    retry = 0
 
     referers = [
         "https://nirmitacademy.akamai.net.in/",
@@ -289,154 +364,73 @@ async def fast_download(url, name):
         "https://test.akamai.net.in/"
     ]
 
-    while retry_count < max_retries:
+    while retry < max_retries:
 
-        try:
+        for ref in referers:
 
-            if ".m3u8" in url:
+            try:
 
-                for ref in referers:
+                download_cmd = f'''
+{cmd}
+--add-header "Referer:{ref}"
+--add-header "User-Agent:Mozilla/5.0"
+--concurrent-fragments 10
+--external-downloader aria2c
+--downloader-args "aria2c: -x 16 -j 32 -s 16 -k 1M"
+-R 50
+--fragment-retries 50
+'''
 
-                    headers = {
-                        "Referer": ref,
-                        "User-Agent": "Mozilla/5.0"
-                    }
+                print(download_cmd)
 
-                    async with aiohttp.ClientSession(headers=headers) as session:
+                process = subprocess.run(download_cmd, shell=True)
 
-                        async with session.get(url) as response:
+                if process.returncode == 0:
+                    break
 
-                            if response.status != 200:
-                                continue
+            except Exception as e:
+                print("Download error:", e)
 
-                            m3u8_text = await response.text()
+        # success check
+        if os.path.isfile(f"{name}.mp4"):
+            return f"{name}.mp4"
 
-                        playlist = m3u8.loads(m3u8_text)
-
-                        # master playlist handle
-                        if playlist.playlists:
-                            best = playlist.playlists[-1]
-                            url = urljoin(url, best.uri)
-
-                            async with session.get(url) as r:
-                                m3u8_text = await r.text()
-
-                            playlist = m3u8.loads(m3u8_text)
-
-                        base_url = url.rsplit("/", 1)[0] + "/"
-
-                        tasks = []
-
-                        for seg in playlist.segments:
-
-                            seg_url = urljoin(base_url, seg.uri)
-
-                            tasks.append(
-                                asyncio.create_task(session.get(seg_url))
-                            )
-
-                        responses = await asyncio.gather(*tasks)
-
-                        segments = []
-
-                        for r in responses:
-                            if r.status == 200:
-                                segments.append(await r.read())
-
-                        if len(segments) > 0:
-
-                            output = f"{name}.mp4"
-
-                            with open(output, "wb") as f:
-                                for s in segments:
-                                    f.write(s)
-
-                            return [output]
-
-                # ffmpeg fallback
-                for ref in referers:
-
-                    cmd = f'''ffmpeg -loglevel error \
--headers "Referer: {ref}\r\nUser-Agent: Mozilla/5.0\r\n" \
--i "{url}" -c copy -bsf:a aac_adtstoasc "{name}.mp4"'''
-
-                    subprocess.run(cmd, shell=True)
-
-                    if os.path.exists(f"{name}.mp4"):
-                        return [f"{name}.mp4"]
-
-            else:
-
-                async with aiohttp.ClientSession() as session:
-
-                    async with session.get(url) as response:
-
-                        if response.status == 200:
-
-                            output = f"{name}.mp4"
-
-                            with open(output, "wb") as f:
-
-                                while True:
-
-                                    chunk = await response.content.read(1024 * 1024)
-
-                                    if not chunk:
-                                        break
-
-                                    f.write(chunk)
-
-                            return [output]
-
-        except Exception as e:
-
-            print("Download error:", e)
-
-        retry_count += 1
-        await asyncio.sleep(3)
-
-    return None
-
-
-async def download_video(url, cmd, name):
-    retry_count = 0
-    max_retries = 2
-
-    while retry_count < max_retries:
-
-        download_cmd = f'{cmd} -R 25 --fragment-retries 25 --external-downloader aria2c --downloader-args "aria2c: -x 16 -j 32"'
-        print(download_cmd)
-        logging.info(download_cmd)
-
-        k = subprocess.run(download_cmd, shell=True)
-
-        if k.returncode == 0:
-            break
-
-        retry_count += 1
-        print(f"⚠️ Download failed (attempt {retry_count}/{max_retries}), retrying in 5s...")
-        await asyncio.sleep(5)
-
-    try:
-        if os.path.isfile(name):
-            return name
-        elif os.path.isfile(f"{name}.webm"):
-            return f"{name}.webm"
-        name = name.split(".")[0]
         if os.path.isfile(f"{name}.mkv"):
             return f"{name}.mkv"
-        elif os.path.isfile(f"{name}.mp4"):
-            return f"{name}.mp4"
-        elif os.path.isfile(f"{name}.mp4.webm"):
-            return f"{name}.mp4.webm"
 
-        return name + ".mp4"
+        if os.path.isfile(f"{name}.webm"):
+            return f"{name}.webm"
 
-    except Exception as exc:
-        logging.error(f"Error checking file: {exc}")
-        return name
+        retry += 1
+        print(f"Retry {retry}/{max_retries}...")
+        await asyncio.sleep(3)
 
+    # fallback ffmpeg (for stubborn m3u8)
 
+    if ".m3u8" in url:
+
+        for ref in referers:
+
+            try:
+
+                ffmpeg_cmd = f'''
+ffmpeg -loglevel error
+-headers "Referer: {ref}\r\nUser-Agent: Mozilla/5.0\r\n"
+-i "{url}"
+-c copy
+-bsf:a aac_adtstoasc
+"{name}.mp4"
+'''
+
+                subprocess.run(ffmpeg_cmd, shell=True)
+
+                if os.path.exists(f"{name}.mp4"):
+                    return f"{name}.mp4"
+
+            except:
+                pass
+
+    return None
 
 
 
