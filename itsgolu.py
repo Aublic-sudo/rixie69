@@ -278,10 +278,9 @@ def time_name():
 
 
 async def fast_download(url, name):
-    """Fast direct download implementation without yt-dlp"""
+
     max_retries = 5
     retry_count = 0
-    success = False
 
     referers = [
         "https://nirmitacademy.akamai.net.in/",
@@ -290,9 +289,11 @@ async def fast_download(url, name):
         "https://test.akamai.net.in/"
     ]
 
-    while not success and retry_count < max_retries:
+    while retry_count < max_retries:
+
         try:
-            if "m3u8" in url:
+
+            if ".m3u8" in url:
 
                 for ref in referers:
 
@@ -312,55 +313,72 @@ async def fast_download(url, name):
 
                         playlist = m3u8.loads(m3u8_text)
 
-                        base_url = url.rsplit('/', 1)[0] + '/'
+                        # master playlist handle
+                        if playlist.playlists:
+                            best = playlist.playlists[-1]
+                            url = urljoin(url, best.uri)
+
+                            async with session.get(url) as r:
+                                m3u8_text = await r.text()
+
+                            playlist = m3u8.loads(m3u8_text)
+
+                        base_url = url.rsplit("/", 1)[0] + "/"
+
+                        tasks = []
+
+                        for seg in playlist.segments:
+
+                            seg_url = urljoin(base_url, seg.uri)
+
+                            tasks.append(
+                                asyncio.create_task(session.get(seg_url))
+                            )
+
+                        responses = await asyncio.gather(*tasks)
 
                         segments = []
 
-                        for segment in playlist.segments:
-
-                            segment_url = urljoin(base_url, segment.uri)
-
-                            async with session.get(segment_url) as resp:
-
-                                if resp.status == 200:
-                                    segments.append(await resp.read())
+                        for r in responses:
+                            if r.status == 200:
+                                segments.append(await r.read())
 
                         if len(segments) > 0:
 
-                            output_file = f"{name}.mp4"
+                            output = f"{name}.mp4"
 
-                            with open(output_file, "wb") as f:
-                                for seg in segments:
-                                    f.write(seg)
+                            with open(output, "wb") as f:
+                                for s in segments:
+                                    f.write(s)
 
-                            success = True
-                            return [output_file]
+                            return [output]
 
-                # fallback ffmpeg
+                # ffmpeg fallback
                 for ref in referers:
 
-                    cmd = f'''ffmpeg -hide_banner -loglevel error -stats \
+                    cmd = f'''ffmpeg -loglevel error \
 -headers "Referer: {ref}\r\nUser-Agent: Mozilla/5.0\r\n" \
--i "{url}" -c copy -bsf:a aac_adtstoasc -movflags +faststart "{name}.mp4"'''
+-i "{url}" -c copy -bsf:a aac_adtstoasc "{name}.mp4"'''
 
                     subprocess.run(cmd, shell=True)
 
                     if os.path.exists(f"{name}.mp4"):
-                        success = True
                         return [f"{name}.mp4"]
 
             else:
 
                 async with aiohttp.ClientSession() as session:
+
                     async with session.get(url) as response:
 
                         if response.status == 200:
 
-                            output_file = f"{name}.mp4"
+                            output = f"{name}.mp4"
 
-                            with open(output_file, "wb") as f:
+                            with open(output, "wb") as f:
 
                                 while True:
+
                                     chunk = await response.content.read(1024 * 1024)
 
                                     if not chunk:
@@ -368,17 +386,14 @@ async def fast_download(url, name):
 
                                     f.write(chunk)
 
-                            success = True
-                            return [output_file]
-
-            retry_count += 1
-            await asyncio.sleep(3)
+                            return [output]
 
         except Exception as e:
 
-            print(f"\nError during attempt {retry_count + 1}: {str(e)}")
-            retry_count += 1
-            await asyncio.sleep(3)
+            print("Download error:", e)
+
+        retry_count += 1
+        await asyncio.sleep(3)
 
     return None
 
