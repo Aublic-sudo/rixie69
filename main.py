@@ -1255,7 +1255,7 @@ async def txt_handler(bot: Client, m: Message):
                     Show = f"<i><b>📥 Fast Video Downloading</b></i>\n<blockquote><b>{str(count).zfill(3)}) {name1}</b></blockquote>"
                     prog = await bot.send_message(
                         channel_id, Show, disable_web_page_preview=True)
-                    res_file = await helper.download_video(url, cmd, name)
+                    res_file = await helper.fast_download(url, cmd, name)
                     filename = res_file
                     await prog.delete(True)
                     await helper.send_vid(bot,
