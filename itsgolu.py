@@ -302,7 +302,11 @@ async def fast_download(url, name):
                             tasks = []
                             for segment in playlist.segments:
                                 segment_url = urljoin(base_url, segment.uri)
-                                task = asyncio.create_task(session.get(segment_url))
+                                headers = {
+                                "Referer": "https://nirmitacademy.akamai.net.in/",
+                                "User-Agent": "Mozilla/5.0"
+                                }
+                                task = asyncio.create_task(session.get(segment_url, headers=headers))
                                 tasks.append(task)
                             
                             responses = await asyncio.gather(*tasks)
@@ -320,11 +324,26 @@ async def fast_download(url, name):
                         return [output_file]
                     else:
                         # For live streams, fall back to ffmpeg
-                        cmd = f'ffmpeg -hide_banner -loglevel error -stats -i "{url}" -c copy -bsf:a aac_adtstoasc -movflags +faststart "{name}.mp4"'
-                        subprocess.run(cmd, shell=True)
-                        if os.path.exists(f"{name}.mp4"):
-                            success = True
-                            return [f"{name}.mp4"]
+
+                        referers = [
+                            "https://nirmitacademy.akamai.net.in/",
+                            "https://test.akamai.net.in/",
+                            "https://classx.co.in/",
+                            "https://akamai.net.in/"
+                        ]
+
+                        for ref in referers:
+
+                            cmd = f'''ffmpeg -hide_banner -loglevel error -stats \
+-headers "Referer: {ref}\r\nUser-Agent: Mozilla/5.0\r\n" \
+-i "{url}" -c copy -bsf:a aac_adtstoasc -movflags +faststart "{name}.mp4"'''
+
+                            subprocess.run(cmd, shell=True)
+
+                            if os.path.exists(f"{name}.mp4"):
+                                success = True
+                                return [f"{name}.mp4"]
+
             else:
                 # For direct video URLs
                 async with aiohttp.ClientSession() as session:
@@ -333,7 +352,7 @@ async def fast_download(url, name):
                             output_file = f"{name}.mp4"
                             with open(output_file, 'wb') as f:
                                 while True:
-                                    chunk = await response.content.read(1024*1024)  # 1MB chunks
+                                    chunk = await response.content.read(1024*1024)
                                     if not chunk:
                                         break
                                     f.write(chunk)
@@ -352,12 +371,12 @@ async def fast_download(url, name):
     
     return None
 
+
 async def download_video(url, cmd, name):
     retry_count = 0
     max_retries = 2
 
     while retry_count < max_retries:
-
 
         download_cmd = f'{cmd} -R 25 --fragment-retries 25 --external-downloader aria2c --downloader-args "aria2c: -x 16 -j 32"'
         print(download_cmd)
@@ -366,7 +385,7 @@ async def download_video(url, cmd, name):
         k = subprocess.run(download_cmd, shell=True)
 
         if k.returncode == 0:
-            break  # success
+            break
 
         retry_count += 1
         print(f"⚠️ Download failed (attempt {retry_count}/{max_retries}), retrying in 5s...")
@@ -386,9 +405,12 @@ async def download_video(url, cmd, name):
             return f"{name}.mp4.webm"
 
         return name + ".mp4"
+
     except Exception as exc:
         logging.error(f"Error checking file: {exc}")
-        return name 
+        return name
+
+
 
 
 
