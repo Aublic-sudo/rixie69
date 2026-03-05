@@ -359,8 +359,8 @@ async def download_video(url, cmd, name):
 
     referers = [
         "https://nirmitacademy.akamai.net.in/",
-        "https://classx.co.in/",
-        "https://akamai.net.in/",
+        "https://test.classx.co.in/",
+        "https://acadmy.akamai.net.in/",
         "https://test.akamai.net.in/"
     ]
 
@@ -370,16 +370,16 @@ async def download_video(url, cmd, name):
 
             try:
 
-                download_cmd = f'''
-{cmd}
---add-header "Referer:{ref}"
---add-header "User-Agent:Mozilla/5.0"
---concurrent-fragments 10
---external-downloader aria2c
---downloader-args "aria2c: -x 16 -j 32 -s 16 -k 1M"
--R 50
---fragment-retries 50
-'''
+                download_cmd = (
+                    f'{cmd} '
+                    f'--add-header "Referer:{ref}" '
+                    f'--add-header "User-Agent:Mozilla/5.0" '
+                    f'--concurrent-fragments 10 '
+                    f'--external-downloader aria2c '
+                    f'--downloader-args "aria2c: -x 16 -j 32 -s 16 -k 1M" '
+                    f'-R 50 '
+                    f'--fragment-retries 50'
+                )
 
                 print(download_cmd)
 
@@ -413,14 +413,14 @@ async def download_video(url, cmd, name):
 
             try:
 
-                ffmpeg_cmd = f'''
-ffmpeg -loglevel error
--headers "Referer: {ref}\r\nUser-Agent: Mozilla/5.0\r\n"
--i "{url}"
--c copy
--bsf:a aac_adtstoasc
-"{name}.mp4"
-'''
+                ffmpeg_cmd = (
+                    f'ffmpeg -loglevel error '
+                    f'-headers "Referer: {ref}\r\nUser-Agent: Mozilla/5.0\r\n" '
+                    f'-i "{url}" '
+                    f'-c copy '
+                    f'-bsf:a aac_adtstoasc '
+                    f'"{name}.mp4"'
+                )
 
                 subprocess.run(ffmpeg_cmd, shell=True)
 
