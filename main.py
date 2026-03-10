@@ -1574,8 +1574,7 @@ async def multi_watcher(pid, api, course_id, token, upload_chat, thread_id, clie
                         )
                         thumb = "live_thumb.jpg"
                         subprocess.run(
-                          f'ffmpeg -i "{live_file}" -ss 00:00:05 -vframes 1
-                          -y "{thumb}"',
+                          f'ffmpeg -i "{live_file}" -ss 00:00:05 -vframes 1 -y "{thumb}"',
                           shell=True
                         )
                       
