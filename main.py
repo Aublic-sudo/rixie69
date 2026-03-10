@@ -1058,11 +1058,11 @@ async def txt_handler(bot: Client, m: Message):
                 cc = (f"<b>🏷️ Iɴᴅᴇx ID  :</b> {str(count).zfill(3)}\n\n"
                       f"<b>🎞️  Tɪᴛʟᴇ :</b> {name1} \n\n"
                       f"<blockquote>📚  𝗕ᴀᴛᴄʜ : {b_name}</blockquote>"
-                      f"\n\n<b>🎓  Uᴘʟᴏᴀᴅ Bʏ : {CR}</b>")
+                      f"\n\n<b>🎓  Extracted by ➤ {CR}</b>")
                 cc1 = (f"<b>🏷️ Iɴᴅᴇx ID :</b> {str(count).zfill(3)}\n\n"
                        f"<b>📑  Tɪᴛʟᴇ :</b> {name1} \n\n"
                        f"<blockquote>📚  𝗕ᴀᴛᴄʜ : {b_name}</blockquote>"
-                       f"\n\n<b>🎓  Uᴘʟᴏᴀᴅ Bʏ : {CR}</b>")
+                       f"\n\n<b>🎓  Extracted by ➤ {CR}</b>")
                 cczip = f'[📁]Zip Id : {str(count).zfill(3)}\n**Zip Title :** `{name1} .zip`\n<blockquote><b>Batch Name :</b> {b_name}</blockquote>\n\n**Extracted by➤**{CR}\n'
                 ccimg = (f"<b>🏷️ Iɴᴅᴇx ID <b>: {str(count).zfill(3)} \n\n"
                          f"<b>🖼️  Tɪᴛʟᴇ</b> : {name1} \n\n"
@@ -1570,7 +1570,7 @@ async def multi_watcher(pid, api, course_id, token, upload_chat, thread_id, clie
                             f"🎥 <b>Vid Id :</b> {str(pid).zfill(3)}\n"
                             f"<b>Video Title :</b> {last_title} [480p].mp4\n\n"
                             f"<blockquote>📚 Batch Name : {last_title}</blockquote>\n\n"
-                            f"<b>Extracted by ➤ @RixieHQ</b>"
+                            f"<b>Extracted by ➤ 𝙂𝙃𝙊𝙎𝙏•𝙍𝙄𝙓</b>"
                         )
                         thumb = "live_thumb.jpg"
                         subprocess.run(
