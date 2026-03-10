@@ -1572,16 +1572,26 @@ async def multi_watcher(pid, api, course_id, token, upload_chat, thread_id, clie
                             f"<blockquote>📚 Batch Name : {last_title}</blockquote>\n\n"
                             f"<b>Extracted by ➤ @RixieHQ</b>"
                         )
-
+                        thumb = "live_thumb.jpg"
+                        subprocess.run(
+                          f'ffmpeg -i "{live_file}" -ss 00:00:05 -vframes 1
+                          -y "{thumb}"',
+                          shell=True
+                        )
+                      
                         await client.send_video(
                             upload_chat,
                             live_file,
                             caption=caption,
                             supports_streaming=True,
+                            thumb=thumb,
                             message_thread_id=thread_id
                         )
+                        if os.path.exists(thumb):
+                           os.remove(thumb)
+                          
 
-                        os.remove(live_file)
+                           os.remove(live_file)
 
                     current_live = None
                     live_file = None
