@@ -1560,42 +1560,63 @@ async def multi_watcher(pid, api, course_id, token, upload_chat, thread_id, clie
             if not sid and current_live:
 
                 live_missing_count += 1
-
+            
                 if live_missing_count >= 3:
-
+            
                     if proc:
                         proc.terminate()
                         await proc.wait()
                         proc = None
-
+            
                     if live_file and os.path.exists(live_file):
-
+            
                         caption = (
                             f"🎥 <b>Vid Id :</b> {str(pid).zfill(3)}\n"
                             f"<b>Video Title :</b> {last_title} [480p].mp4\n\n"
                             f"<blockquote>📚 Batch Name : {last_title}</blockquote>\n\n"
                             f"<b>Extracted by ➤ 𝙂𝙃𝙊𝙎𝙏•𝙍𝙄𝙓</b>"
                         )
+            
+                        # 🔧 Fix video metadata (duration issue fix)
+                        fixed_file = f"fixed_{live_file}"
+            
+                        subprocess.run(
+                            f'ffmpeg -y -i "{live_file}" -c copy -map 0 -movflags +faststart "{fixed_file}"',
+                            shell=True
+                        )
+            
+                        os.remove(live_file)
+                        live_file = fixed_file
+            
+                        # 🎞️ Get video duration
+                        duration = int(float(subprocess.check_output(
+                            f'ffprobe -v error -show_entries format=duration -of csv=p=0 "{live_file}"',
+                            shell=True
+                        ).decode().strip()))
+            
+                        # 🖼️ Generate thumbnail
                         thumb = "live_thumb.jpg"
                         subprocess.run(
-                          f'ffmpeg -i "{live_file}" -ss 00:00:05 -vframes 1 -y "{thumb}"',
-                          shell=True
+                            f'ffmpeg -i "{live_file}" -ss 00:00:05 -vframes 1 -y "{thumb}"',
+                            shell=True
                         )
-                      
+            
                         await client.send_video(
                             upload_chat,
                             live_file,
                             caption=caption,
                             supports_streaming=True,
                             thumb=thumb,
+                            duration=duration,
                             message_thread_id=thread_id
                         )
+            
                         if os.path.exists(thumb):
-                           os.remove(thumb)
-                          
-
-                           os.remove(live_file)
-
+                            os.remove(thumb)
+            
+                        if os.path.exists(live_file):
+                            os.remove(live_file)
+            
                     current_live = None
                     live_file = None
                     live_missing_count = 0
