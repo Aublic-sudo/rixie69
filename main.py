@@ -1105,9 +1105,8 @@ async def txt_handler(bot: Client, m: Message):
                 
                             headers = {
                                 "User-Agent": "Mozilla/5.0",
-                                "Referer": ref,
-                                "Origin": ref,
-                                "Accept": "*/*"
+                                "Referer": ref
+                                
                             }
                 
                             response = scraper.get(url, headers=headers, stream=True)
