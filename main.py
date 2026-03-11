@@ -1085,64 +1085,68 @@ async def txt_handler(bot: Client, m: Message):
                         continue
 
                 elif ".pdf" in url:
-                    if "cwmediabkt99" in url:
-                        max_retries = 3  # Define the maximum number of retries
-                        retry_delay = 4  # Delay between retries in seconds
-                        success = False  # To track whether the download was successful
-                        failure_msgs = []  # To keep track of failure messages
 
-                        for attempt in range(max_retries):
-                            try:
-                                await asyncio.sleep(retry_delay)
-                                url = url.replace(" ", "%20")
-                                scraper = cloudscraper.create_scraper()
-                                response = scraper.get(url)
-
-                                if response.status_code == 200:
-                                    with open(f'{name}.pdf', 'wb') as file:
-                                        file.write(response.content)
-                                    await asyncio.sleep(
-                                        retry_delay
-                                    )  # Optional, to prevent spamming
-                                    copy = await bot.send_document(
-                                        chat_id=channel_id,
-                                        document=f'{name}.pdf',
-                                        caption=cc1)
-                                    count += 1
-                                    os.remove(f'{name}.pdf')
-                                    success = True
-                                    break  # Exit the retry loop if successful
-                                else:
-                                    failure_msg = await m.reply_text(
-                                        f"Attempt {attempt + 1}/{max_retries} failed: {response.status_code} {response.reason}"
-                                    )
-                                    failure_msgs.append(failure_msg)
-
-                            except Exception as e:
-                                failure_msg = await m.reply_text(
-                                    f"Attempt {attempt + 1}/{max_retries} failed: {str(e)}"
+                    try:
+                
+                        url = url.replace(" ", "%20")
+                        filename = f"{name}.pdf"
+                
+                        referers = [
+                            "https://test.classx.co.in",
+                            "https://test.akamai.net.in",
+                            "https://static-db-v2.appx.co.in",
+                            "https://web.classplusapp.com"
+                        ]
+                
+                        scraper = cloudscraper.create_scraper()
+                        success = False
+                
+                        for ref in referers:
+                
+                            headers = {
+                                "User-Agent": "Mozilla/5.0",
+                                "Referer": ref,
+                                "Origin": ref,
+                                "Accept": "*/*"
+                            }
+                
+                            response = scraper.get(url, headers=headers, stream=True)
+                
+                            if response.status_code == 200:
+                
+                                with open(filename, "wb") as f:
+                                    for chunk in response.iter_content(1024 * 1024):
+                                        if chunk:
+                                            f.write(chunk)
+                
+                                await bot.send_document(
+                                    chat_id=channel_id,
+                                    document=filename,
+                                    caption=cc1
                                 )
-                                failure_msgs.append(failure_msg)
-                                await asyncio.sleep(retry_delay)
-                                continue
-                        for msg in failure_msgs:
-                            await msg.delete()
-
-                    else:
-                        try:
-                            cmd = f'yt-dlp -o "{name}.pdf" "{url}"'
-                            download_cmd = f"{cmd} -R 25 --fragment-retries 25"
-                            os.system(download_cmd)
-                            copy = await bot.send_document(
-                                chat_id=channel_id,
-                                document=f'{name}.pdf',
-                                caption=cc1)
-                            count += 1
-                            os.remove(f'{name}.pdf')
-                        except FloodWait as e:
-                            await m.reply_text(str(e))
-                            time.sleep(e.x)
-                            continue
+                
+                                count += 1
+                
+                                if os.path.exists(filename):
+                                    os.remove(filename)
+                
+                                success = True
+                                break
+                
+                        if not success:
+                            raise Exception("All referers failed")
+                
+                    except Exception as e:
+                
+                        await bot.send_message(
+                            channel_id,
+                            f"⚠️ PDF Download Failed\n\n{name1}\n\nReason: {str(e)}"
+                        )
+                
+                        failed_count += 1
+                        count += 1
+                        continue
+                    
 
                 elif ".ws" in url and url.endswith(".ws"):
                     try:
@@ -1201,7 +1205,7 @@ async def txt_handler(bot: Client, m: Message):
                             url, cmd, name, appxkey)
                         filename = res_file
                         await prog.delete(True)
-                        if os.exists(filename):
+                        if os.path.exists(filename):
                             await helper.send_vid(bot,
                                                   m,
                                                   cc,
