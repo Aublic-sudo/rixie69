@@ -1092,10 +1092,10 @@ async def txt_handler(bot: Client, m: Message):
                         filename = f"{name}.pdf"
                 
                         referers = [
-                            "https://test.classx.co.in",
-                            "https://test.akamai.net.in",
-                            "https://static-db-v2.appx.co.in",
-                            "https://web.classplusapp.com"
+                            "https://nirmitacademy.akamai.net.in/",
+                            "https://test.classx.co.in/",
+                            "https://acadmy.akamai.net.in/",
+                            "https://test.akamai.net.in/"
                         ]
                 
                         scraper = cloudscraper.create_scraper()
