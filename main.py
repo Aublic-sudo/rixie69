@@ -1322,7 +1322,7 @@ async def txt_handler(bot: Client, m: Message):
     & auth_filter
     & ~filters.command(
         ["start", "drm", "addlive", "process", "stoplive", "killalllive",
-         "plan", "id", "t2t", "t2h", "logs"]
+         "plan", "id", "t2t", "t2h", "logs", "144", "240", "360", "480", "720", "1080"]
     )
 )
 async def text_handler(bot: Client, m: Message):
