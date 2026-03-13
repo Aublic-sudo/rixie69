@@ -208,42 +208,74 @@ def generate_html(file_name, videos, pdfs, others):
         <div class="other-list">{other_links}</div>
     </div>
 
-    <footer>Extracted By ⌯ FʀᴏɴᴛMᴀɴ | ×͜× |</footer>
+    <footer>Extracted By ⌯ Ghost~Rix | ×͜× |</footer>
 
     <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
     <script>
-        const player = videojs('engineer-babu-player', {{
-            controls: true, autoplay: false, preload: 'auto', fluid: true
-        }});
-        function playVideo(url) {{
-            if (url.includes('.m3u8')) {{
-                player.src({{ src: url, type: 'application/x-mpegURL' }});
-                player.play().catch(() => window.open(url, '_blank'));
-            }} else {{
-                window.open(url, '_blank');
-            }}
-        }}
-        function showContent(tabName) {{
-            document.querySelectorAll('.content').forEach(c => c.style.display = 'none');
-            document.getElementById(tabName).style.display = 'block';
-            filterContent();
-        }}
-        function filterContent() {{
-            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-            const categories = ['videos','pdfs','others'];
-            categories.forEach(cat => {{
-                const items = document.querySelectorAll(`#${{cat}} .${{cat}}-list a`);
-                let catResult = false;
-                items.forEach(item => {{
-                    if (item.textContent.toLowerCase().includes(searchTerm)) {{
-                        item.style.display = 'block'; catResult = true;
-                    }} else item.style.display = 'none';
-                }});
-                document.querySelector(`#${{cat}} h2`).style.display = catResult ? 'block' : 'none';
-            }});
-        }}
-        document.addEventListener('DOMContentLoaded', () => showContent('videos'));
-    </script>
+const PROXY_BASE = "https://appx-proxy.vercel.app/proxy?url=";
+
+function getProxyUrl(url){
+    return PROXY_BASE + encodeURIComponent(url);
+}
+
+const player = videojs('engineer-babu-player', {
+    controls: true,
+    autoplay: false,
+    preload: 'auto',
+    fluid: true
+});
+
+function playVideo(url){
+
+    if(url.includes(".m3u8")){
+
+        const proxyUrl = getProxyUrl(url);
+
+        player.src({
+            src: proxyUrl,
+            type: "application/x-mpegURL"
+        });
+
+        player.play().catch(() => {
+            window.open(proxyUrl, "_blank");
+        });
+
+    } else {
+
+        window.open(url, "_blank");
+
+    }
+}
+
+function showContent(tabName){
+    document.querySelectorAll('.content').forEach(c => c.style.display = 'none');
+    document.getElementById(tabName).style.display = 'block';
+    filterContent();
+}
+
+function filterContent(){
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const categories = ['videos','pdfs','others'];
+
+    categories.forEach(cat => {
+        const items = document.querySelectorAll(`#${cat} .${cat}-list a`);
+        let catResult = false;
+
+        items.forEach(item => {
+            if(item.textContent.toLowerCase().includes(searchTerm)){
+                item.style.display = 'block';
+                catResult = true;
+            } else {
+                item.style.display = 'none';
+            }
+        });
+
+        document.querySelector(`#${cat} h2`).style.display = catResult ? 'block' : 'none';
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => showContent('videos'));
+</script>
 </body>
 </html>
     """
