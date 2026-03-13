@@ -212,7 +212,7 @@ def generate_html(file_name, videos, pdfs, others):
 
     <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
     <script>
-    const PROXY_BASE = "https://appx-proxy-1.onrender.com/proxy?url=";
+    const PROXY_BASE = "https://appx-proxy.vercel.app/proxy?url=";
     
     function getProxyUrl(url){{
         return PROXY_BASE + encodeURIComponent(url);
