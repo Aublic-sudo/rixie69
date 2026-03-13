@@ -214,65 +214,65 @@ def generate_html(file_name, videos, pdfs, others):
     <script>
     const PROXY_BASE = "https://appx-proxy-1.onrender.com/proxy?url=";
     
-    function getProxyUrl(url){
+    function getProxyUrl(url){{
         return PROXY_BASE + encodeURIComponent(url);
-    }
+    }}
     
-    const player = videojs('engineer-babu-player', {
+    const player = videojs('engineer-babu-player', {{
         controls: true,
         autoplay: false,
         preload: 'auto',
         fluid: true
-    });
+    }});
     
-    function playVideo(url){
+    function playVideo(url){{
     
-        if(url.includes(".m3u8")){
+        if(url.includes(".m3u8")){{
     
             const proxyUrl = getProxyUrl(url);
     
-            player.src({
+            player.src({{
                 src: proxyUrl,
                 type: "application/x-mpegURL"
-            });
+            }});
     
-            player.play().catch(() => {
+            player.play().catch(() => {{
                 window.open(proxyUrl, "_blank");
-            });
+            }});
     
-        } else {
+        }} else {{
     
             window.open(url, "_blank");
     
-        }
-    }
+        }}
+    }}
     
-    function showContent(tabName){
+    function showContent(tabName){{
         document.querySelectorAll('.content').forEach(c => c.style.display = 'none');
         document.getElementById(tabName).style.display = 'block';
         filterContent();
-    }
+    }}
     
-    function filterContent(){
+    function filterContent(){{
         const searchTerm = document.getElementById('searchInput').value.toLowerCase();
         const categories = ['videos','pdfs','others'];
     
-        categories.forEach(cat => {
-            const items = document.querySelectorAll(`#${cat} .${cat}-list a`);
+        categories.forEach(cat => {{
+            const items = document.querySelectorAll(`#${{cat}} .${{cat}}-list a`);
             let catResult = false;
     
-            items.forEach(item => {
-                if(item.textContent.toLowerCase().includes(searchTerm)){
+            items.forEach(item => {{
+                if(item.textContent.toLowerCase().includes(searchTerm)){{
                     item.style.display = 'block';
                     catResult = true;
-                } else {
+                }} else {{
                     item.style.display = 'none';
-                }
-            });
+                }}
+            }});
     
-            document.querySelector(`#${cat} h2`).style.display = catResult ? 'block' : 'none';
-        });
-    }
+            document.querySelector(`#${{cat}} h2`).style.display = catResult ? 'block' : 'none';
+        }});
+    }}
     
     document.addEventListener('DOMContentLoaded', () => showContent('videos'));
     </script>
