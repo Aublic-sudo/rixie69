@@ -1523,98 +1523,96 @@ class LiveRecorder:
             except Exception as e:
                 print(f"[PID {self.config.pid}] Error removing temp dir: {e}")
     
-        async def fetch_batch_name(self) -> str:
-            """Fetch batch name from course_slug using /get/courselistnewv2 endpoint"""
-            headers = {
-                "Authorization": self.config.token,
-                "Client-Service": "Appx",
-                "Auth-Key": "appxapi",
-                "User-ID": "-2",
-                "User-Agent": "okhttp/4.9.1"
-            }
+    async def fetch_batch_name(self) -> str:
+        """Fetch batch name from course_slug using /get/courselistnewv2 endpoint"""
+        headers = {
+            "Authorization": self.config.token,
+            "Client-Service": "Appx",
+            "Auth-Key": "appxapi",
+            "User-ID": "-2",
+            "User-Agent": "okhttp/4.9.1"
+        }
     
-            try:
-                async with aiohttp.ClientSession() as session:
-                    # Get all courses from the API
-                    url = f"{self.config.api_base}/get/courselistnewv2?exam_id=&start=-1"
-                    async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                        if resp.status != 200:
-                            print(f"[PID {self.config.pid}] API returned status {resp.status}")
-                            return "Unknown Batch"
-                        
-                        try:
-                            data = await resp.json()
-                        except Exception as e:
-                            print(f"[PID {self.config.pid}] JSON parse error: {e}")
-                            return "Unknown Batch"
-                        
-                        if not isinstance(data, dict):
-                            print(f"[PID {self.config.pid}] Response is not dict: {type(data)}")
-                            return "Unknown Batch"
-                        
-                        # Debug: Print the response structure
-                        print(f"[PID {self.config.pid}] API Response keys: {list(data.keys())}")
-                        
-                        # Get the course list - handle different response structures
-                        courses = []
-                        if "data" in data and isinstance(data["data"], dict):
-                            courses = data["data"].get("course_list", [])
-                        elif "data" in data and isinstance(data["data"], list):
-                            courses = data["data"]
-                        elif "course_list" in data:
-                            courses = data["course_list"]
-                        elif "courses" in data:
-                            courses = data["courses"]
-                        
-                        print(f"[PID {self.config.pid}] Found {len(courses)} courses, looking for ID: {self.config.course_id}")
-                        
-                        # Search for matching course_id
-                        selected_course = None
-                        target_id = str(self.config.course_id).strip()
-                        
-                        for course in courses:
-                            if not isinstance(course, dict):
-                                continue
-                            
-                            # Check different possible ID field names
-                            course_id = str(course.get("id", "")).strip()
-                            course_id_alt = str(course.get("course_id", "")).strip()
-                            
-                            print(f"[PID {self.config.pid}] Checking course - id: {course_id}, course_id: {course_id_alt}")
-                            
-                            if course_id == target_id or course_id_alt == target_id:
-                                selected_course = course
-                                print(f"[PID {self.config.pid}] Found matching course: {course}")
-                                break
-                        
-                        if selected_course:
-                            # Get batch name from course_slug or other fields
-                            batch_name = selected_course.get("course_slug", "")
-                            if not batch_name:
-                                batch_name = selected_course.get("course_name", "")
-                            if not batch_name:
-                                batch_name = selected_course.get("title", "")
-                            if not batch_name:
-                                batch_name = selected_course.get("name", "")
-                            
-                            if batch_name:
-                                # Convert slug to readable name
-                                batch_name = batch_name.replace("-", " ").title()
-                                print(f"[PID {self.config.pid}] Batch name found: {batch_name}")
-                                return batch_name
-                        
-                        print(f"[PID {self.config.pid}] No matching course found for ID: {target_id}")
+        try:
+            async with aiohttp.ClientSession() as session:
+                # Get all courses from the API
+                url = f"{self.config.api_base}/get/courselistnewv2?exam_id=&start=-1"
+                async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                    if resp.status != 200:
+                        print(f"[PID {self.config.pid}] API returned status {resp.status}")
                         return "Unknown Batch"
-                            
-            except Exception as e:
-                print(f"[PID {self.config.pid}] Error fetching batch name: {e}")
-                import traceback
-                traceback.print_exc()
-                return "Unknown Batch"
                     
+                    try:
+                        data = await resp.json()
+                    except Exception as e:
+                        print(f"[PID {self.config.pid}] JSON parse error: {e}")
+                        return "Unknown Batch"
+                    
+                    if not isinstance(data, dict):
+                        print(f"[PID {self.config.pid}] Response is not dict: {type(data)}")
+                        return "Unknown Batch"
+                    
+                    # Debug: Print the response structure
+                    print(f"[PID {self.config.pid}] API Response keys: {list(data.keys())}")
+                    
+                    # Get the course list - handle different response structures
+                    courses = []
+                    if "data" in data and isinstance(data["data"], dict):
+                        courses = data["data"].get("course_list", [])
+                    elif "data" in data and isinstance(data["data"], list):
+                        courses = data["data"]
+                    elif "course_list" in data:
+                        courses = data["course_list"]
+                    elif "courses" in data:
+                        courses = data["courses"]
+                    
+                    print(f"[PID {self.config.pid}] Found {len(courses)} courses, looking for ID: {self.config.course_id}")
+                    
+                    # Search for matching course_id
+                    selected_course = None
+                    target_id = str(self.config.course_id).strip()
+                    
+                    for course in courses:
+                        if not isinstance(course, dict):
+                            continue
+                        
+                        # Check different possible ID field names
+                        course_id = str(course.get("id", "")).strip()
+                        course_id_alt = str(course.get("course_id", "")).strip()
+                        
+                        print(f"[PID {self.config.pid}] Checking course - id: {course_id}, course_id: {course_id_alt}")
+                        
+                        if course_id == target_id or course_id_alt == target_id:
+                            selected_course = course
+                            print(f"[PID {self.config.pid}] Found matching course: {course}")
+                            break
+                    
+                    if selected_course:
+                        # Get batch name from course_slug or other fields
+                        batch_name = selected_course.get("course_slug", "")
+                        if not batch_name:
+                            batch_name = selected_course.get("course_name", "")
+                        if not batch_name:
+                            batch_name = selected_course.get("title", "")
+                        if not batch_name:
+                            batch_name = selected_course.get("name", "")
+                        
+                        if batch_name:
+                            # Convert slug to readable name
+                            batch_name = batch_name.replace("-", " ").title()
+                            print(f"[PID {self.config.pid}] Batch name found: {batch_name}")
+                            return batch_name
+                    
+                    print(f"[PID {self.config.pid}] No matching course found for ID: {target_id}")
+                    return "Unknown Batch"
+                        
         except Exception as e:
             print(f"[PID {self.config.pid}] Error fetching batch name: {e}")
+            import traceback
+            traceback.print_exc()
             return "Unknown Batch"
+                    
+        
     
     async def fetch_live_data(self) -> tuple:
         """Fetch live data with proper error handling"""
