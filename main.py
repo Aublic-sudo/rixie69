@@ -2110,7 +2110,7 @@ def setup_live(bot):
         if not ACTIVE_LIVES:
             return await message.reply_text("❌ No active live processes")
         
-        text = "📊 <b>Active Live Processes</b>\\n\\n"
+        text = "📊 <b>Active Live Processes</b>\n\n"
         
         for pid, data in sorted(ACTIVE_LIVES.items()):
             config = data["config"]
@@ -2129,7 +2129,7 @@ def setup_live(bot):
                 f"├ 📤 {config.upload_chat}\n"
                 f"├ 🎥 480p\n"
                 f"└ ⏰ Started: {started}\n\n"
-           )
+            )
         
         text += f"Total: <code>{len(ACTIVE_LIVES)}</code> processes"
         await message.reply_text(text, parse_mode="html")
@@ -2243,6 +2243,7 @@ def setup_live(bot):
             
         except Exception as e:
             await message.reply_text(f"❌ Error: <code>{str(e)[:100]}</code>", parse_mode="html")
+
 
 
 
