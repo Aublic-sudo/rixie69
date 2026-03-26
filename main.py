@@ -1668,7 +1668,7 @@ class LiveRecorder:
                     f"📊 Quality: <code>480p</code>\\n"
                     f"📚 Batch: <b>{self.config.batch_name}</b>\\n"
                     f"⬇️ <i>Recording started...</i>\\n"
-                    f"⏰ <code>{datetime.now().strftime(\'%H:%M:%S\')}</code>",
+                    f"⏰ <code>{datetime.now().strftime('%H:%M:%S')}</code>",
                     message_thread_id=self.config.thread_id
                 )
             except Exception as e:
@@ -1808,13 +1808,13 @@ class LiveRecorder:
             caption = (
                 f"🎥 <b>Live Recording</b>\\n"
                 f"🆔 ID: <code>{self.config.pid:03d}</code>\\n"
-                f"📛 <b>{self.last_title or \'Unknown\'}</b> [480p].mp4\\n"
+                f"📛 <b>{self.last_title or 'Unknown'}</b> [480p].mp4\\n"
                 f"📚 Batch: <b>{self.config.batch_name}</b>\\n"
                 f"⏱ Duration: <code>{duration_str}</code>\\n"
                 f"📦 Size: <code>{os.path.getsize(fixed_file) / (1024*1024):.1f} MB</code>\\n"
                 f"<blockquote>📚 {self.config.batch_name}</blockquote>\\n\\n"
                 f"<b>🎓 Extracted by ➤ 𝙂𝙃𝙊𝙎𝙏•𝙍𝙄𝙓</b>\\n"
-                f"⏰ <code>{end_time.strftime(\'%H:%M:%S\')}</code>"
+                f"⏰ <code>{end_time.strftime('%H:%M:%S')}</code>"
             )
             
             # Upload with progress
@@ -1866,9 +1866,9 @@ class LiveRecorder:
                 self.config.owner_chat,
                 f"⚠️ <b>Process {self.config.pid:03d} Error</b>\\n"
                 f"<blockquote>{error_msg}</blockquote>\\n"
-                f"🎬 Title: {self.last_title or \'N/A\'}\\n"
+                f"🎬 Title: {self.last_title or 'N/A'}\\n"
                 f"📚 Batch: {self.config.batch_name}\\n"
-                f"⏰ <code>{datetime.now().strftime(\'%H:%M:%S\')}</code>"
+                f"⏰ <code>{datetime.now().strftime('%H:%M:%S')}</code>"
             )
         except Exception as e:
             print(f"[PID {self.config.pid}] Failed to send error notification: {e}")
