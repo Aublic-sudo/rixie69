@@ -2205,7 +2205,7 @@ def setup_live(bot):
             f"✅ Stopped: <code>{stopped}</code>\n"
             f"❌ Failed: <code>{failed}</code>\n"
             f"📊 Total: <code>{count}</code>"
-        ))
+        )
     
     @bot.on_message(filters.command("livestats") & auth_filter)
     async def live_stats(client, message):
