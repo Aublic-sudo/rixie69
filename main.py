@@ -1647,7 +1647,7 @@ class LiveRecorder:
             self.live_missing_count = 0
             
             # Sanitize filename - use Title (batch name nahi, wo caption mein ayega)
-            safe_title = re.sub(r\'[\\\\/*?:"<>|]\', "", title or "LIVE").strip()[:50]
+            safe_title = re.sub(r'[\\/*?:"<>|]', "", title or "LIVE")[:50].strip()
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             self.live_file = os.path.join(
                 self._temp_dir, 
