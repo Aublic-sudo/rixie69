@@ -2129,10 +2129,10 @@ def setup_live(bot):
                 f"├ 📤 {config.upload_chat}\n"
                 f"├ 🎥 480p\n"
                 f"└ ⏰ Started: {started}\n\n"
-            )
+           )
         
         text += f"Total: <code>{len(ACTIVE_LIVES)}</code> processes"
-        await message.reply_text(text)
+        await message.reply_text(text, parse_mode="html")
     
     @bot.on_message(filters.command("stoplive") & auth_filter)
     async def stop_live(client, message):
