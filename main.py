@@ -32,7 +32,7 @@ from bs4 import BeautifulSoup
 from pytube import YouTube
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import unpad
-
+from aiohttp import ClientSession
 # ⚙️ Pyrogram
 from pyrogram import Client, filters, idle
 from pyrogram.handlers import MessageHandler
@@ -1446,324 +1446,751 @@ async def back_to_start_callback(client, callback_query: CallbackQuery):
 
 # ================= LIVE AUTO RECORDER (MULTI VERSION) =================
 
-ACTIVE_LIVES = {}
+
+ACTIVE_LIVES: Dict[int, Dict[str, Any]] = {}
 PROCESS_COUNTER = 0
+MAX_LIVE_MISSING_COUNT = 3  # Configurable
+CHECK_INTERVAL = 20  # seconds
+FFMPEG_TIMEOUT = 30  # seconds for graceful shutdown
 
 
-def fetch_live(api_base, course_id, token):
-
-    headers = {
-        "Authorization": token,
-        "Client-Service": "Appx",
-        "Auth-Key": "appxapi",
-        "User-ID": "-2",
-        "User-Agent": "okhttp/4.9.1"
-    }
-
-    endpoints = [
-        f"/get/live_upcoming_course_classv2?start=-1&courseid={course_id}",
-        f"/get/course_contents_by_live_status?course_id={course_id}&start=-1&live_status=1,2"
-    ]
-
-    for ep in endpoints:
-        try:
-            r = requests.get(api_base + ep, headers=headers, timeout=10)
-
-            if r.status_code in [401,403]:
-                return "AUTH_ERROR", None, None
-
-            if r.status_code != 200:
-                continue
-
-            j = r.json()
-
-            if j.get("data") and j["data"].get("live"):
-                item = j["data"]["live"][0]
-
-                title = item.get("Title","LIVE")
-                sid = item.get("recording_schedule")
-
-                if not sid:
-                    return None,None,None
-
-                url = f"https://liveclasses.cloud-front.in/live/{sid}_480p.m3u8"
-
-                return title,sid,url
-
-        except Exception as e:
-            print("LIVE FETCH ERROR:", e)
-
-    return None,None,None
+@dataclass
+class LiveConfig:
+    """Configuration for live recording"""
+    pid: int
+    api_base: str
+    course_id: str
+    token: str
+    upload_chat: int
+    thread_id: Optional[int]
+    client: Any
+    owner_chat: int
+    quality: str = "480p"  # Fixed quality, no selection
+    max_duration: Optional[int] = None  # Max recording duration in seconds
+    batch_name: str = ""  # New: Store batch name from course_slug
 
 
-# ================= MULTI WATCHER LOOP =================
-
-async def multi_watcher(pid, api, course_id, token, upload_chat, thread_id, client, owner_chat):
-
-    current_live = None
-    live_file = None
-    proc = None
-    live_missing_count = 0
-    last_title = None
-
-    try:
-        while True:
-
-            title, sid, url = await asyncio.to_thread(fetch_live, api, course_id, token)
-
-            if title == "AUTH_ERROR":
-                await client.send_message(owner_chat, f"❌ PROCESS {pid} TOKEN EXPIRED")
-                break
-
-            # 🔴 LIVE START
-            if sid and sid != current_live:
-
-                live_missing_count = 0
-                current_live = sid
-                last_title = title
-
-                safe_title = re.sub(r'[\\/*?:"<>|]', "", title or "LIVE").strip()
-                live_file = f"{safe_title}_{pid}.mp4"
-
-                await client.send_message(
-                    upload_chat,
-                    
-                    f"🔴 <b>LIVE STARTED</b>\n"
-                    f"🆔 Process : {str(pid).zfill(3)}\n"
-                    f"🎬 {title}\n"
-                    f"⬇️ <i>Recording & Downloading Started...</i>",
-                    message_thread_id=thread_id
-                )
-
-                cmd = [
-                    "ffmpeg",
-                    "-y",
-                    "-fflags","+genpts",
-                    "-i", url,
-
-                    "-c","copy",
-                    "-bsf:a","aac_adtstoasc",
-
-                    "-movflags","+faststart",   # ⭐ Thumbnail fix
-                    "-map","0",
-
-                    live_file
-                ]
-
-                proc = await asyncio.create_subprocess_exec(*cmd)
-
-                if pid in ACTIVE_LIVES:
-                    ACTIVE_LIVES[pid]["proc"] = proc
-
-            # 🟢 LIVE END
-            if not sid and current_live:
-
-                live_missing_count += 1
+class LiveRecorder:
+    """Robust live recorder with proper resource management"""
+    
+    def __init__(self, config: LiveConfig):
+        self.config = config
+        self.current_live: Optional[str] = None
+        self.live_file: Optional[str] = None
+        self.proc: Optional[asyncio.subprocess.Process] = None
+        self.live_missing_count = 0
+        self.last_title: Optional[str] = None
+        self.start_time: Optional[datetime] = None
+        self._shutdown_event = asyncio.Event()
+        self._lock = asyncio.Lock()
+        self._temp_dir = tempfile.mkdtemp(prefix=f"live_{config.pid}_")
+        
+    async def cleanup(self):
+        """Proper cleanup of all resources"""
+        async with self._lock:
+            # Stop ffmpeg process
+            if self.proc and self.proc.returncode is None:
+                try:
+                    # Graceful shutdown first
+                    self.proc.send_signal(signal.SIGTERM)
+                    await asyncio.wait_for(self.proc.wait(), timeout=FFMPEG_TIMEOUT)
+                except asyncio.TimeoutError:
+                    # Force kill if graceful shutdown fails
+                    self.proc.kill()
+                    await self.proc.wait()
+                except Exception as e:
+                    print(f"[PID {self.config.pid}] Error stopping ffmpeg: {e}")
+                finally:
+                    self.proc = None
             
-                if live_missing_count >= 3:
+            # Cleanup temp files
+            if self.live_file and os.path.exists(self.live_file):
+                try:
+                    os.remove(self.live_file)
+                except Exception as e:
+                    print(f"[PID {self.config.pid}] Error removing live file: {e}")
             
-                    if proc:
-                        proc.terminate()
-                        await proc.wait()
-                        proc = None
-            
-                    if live_file and os.path.exists(live_file):
-            
-                        caption = (
-                            f"🎥 <b>Vid Id :</b> {str(pid).zfill(3)}\n"
-                            f"<b>Video Title :</b> {last_title} [480p].mp4\n\n"
-                            f"<blockquote>📚 Batch Name : {last_title}</blockquote>\n\n"
-                            f"<b>Extracted by ➤ 𝙂𝙃𝙊𝙎𝙏•𝙍𝙄𝙓</b>"
-                        )
-            
-                        # 🔧 Fix video metadata (duration issue fix)
-                        fixed_file = f"fixed_{live_file}"
-            
-                        subprocess.run(
-                            f'ffmpeg -y -i "{live_file}" -c copy -map 0 -movflags +faststart "{fixed_file}"',
-                            shell=True
-                        )
-            
-                        os.remove(live_file)
-                        live_file = fixed_file
-            
-                        # 🎞️ Get video duration
-                        duration = int(float(subprocess.check_output(
-                            f'ffprobe -v error -show_entries format=duration -of csv=p=0 "{live_file}"',
-                            shell=True
-                        ).decode().strip()))
-            
-                        # 🖼️ Generate thumbnail
-                        thumb = "live_thumb.jpg"
-                        subprocess.run(
-                            f'ffmpeg -i "{live_file}" -ss 00:00:05 -vframes 1 -y "{thumb}"',
-                            shell=True
-                        )
-            
-                        await client.send_video(
-                            upload_chat,
-                            live_file,
-                            caption=caption,
-                            supports_streaming=True,
-                            thumb=thumb,
-                            duration=duration,
-                            message_thread_id=thread_id
-                        )
-            
-                        if os.path.exists(thumb):
-                            os.remove(thumb)
-            
-                        if os.path.exists(live_file):
-                            os.remove(live_file)
-            
-                    current_live = None
-                    live_file = None
-                    live_missing_count = 0
-
-            await asyncio.sleep(20)
-
-    finally:
-        ACTIVE_LIVES.pop(pid, None)
-
-
-# ================= ADD LIVE COMMAND =================
-
-def setup_live(bot):
-
-    @bot.on_message(filters.command("addlive") & auth_filter)
-    async def add_live_multi(client, m: Message):
-
-        global PROCESS_COUNTER
-
-        await m.reply_text("🌐 Send API HOST")
-        api = (await client.listen(m.chat.id)).text.strip()
-
-        await m.reply_text("📚 Send COURSE ID")
-        course_id = (await client.listen(m.chat.id)).text.strip()
-
-        await m.reply_text("🔐 Send AUTH TOKEN")
-        token = (await client.listen(m.chat.id)).text.strip()
-
-        await m.reply_text(
-          "📤 Send the CHAT ID where the video should be uploaded.\n\nSend /d to use the current chat."
-        )
-
-        chat_input = (await client.listen(m.chat.id)).text.strip()
-
-        if chat_input == "/d":
-            upload_chat = m.chat.id
-            thread_id = None
-        else:
-            if "/" in chat_input:
-                base, topic = chat_input.split("/")
-                upload_chat = int(base)
-                thread_id = int(topic)
-            else:
-                upload_chat = int(chat_input)
-                thread_id = None
-
-        PROCESS_COUNTER += 1
-        pid = PROCESS_COUNTER
-
-        await m.reply_text(f"✅ LIVE PROCESS STARTED\n🆔 Process ID : {pid}")
-
-        task = asyncio.create_task(
-            multi_watcher(
-                pid,
-                api,
-                course_id,
-                token,
-                upload_chat,
-                thread_id,
-                client,
-                m.chat.id
-            )
-        )
-
-        ACTIVE_LIVES[pid] = {
-            "api": api,
-            "course": course_id,
-            "upload": upload_chat,
-            "task": task,
-            "proc": None
+            # Cleanup temp directory
+            try:
+                import shutil
+                shutil.rmtree(self._temp_dir, ignore_errors=True)
+            except Exception as e:
+                print(f"[PID {self.config.pid}] Error removing temp dir: {e}")
+    
+    async def fetch_batch_name(self) -> str:
+        """Fetch batch name from course_slug using /get/courselistnewv2 endpoint"""
+        headers = {
+            "Authorization": self.config.token,
+            "Client-Service": "Appx",
+            "Auth-Key": "appxapi",
+            "User-ID": "-2",
+            "User-Agent": "okhttp/4.9.1"
         }
 
-    # ================= PROCESS LIST =================
-
-    @bot.on_message(filters.command("process") & auth_filter)
-    async def list_process(client, m: Message):
-
-        if not ACTIVE_LIVES:
-            return await m.reply_text("❌ No Active Live Processes")
-
-        txt = "**🚀 ACTIVE LIVE PROCESSES**\n\n"
-
-        for pid, data in ACTIVE_LIVES.items():
-
-            txt += (
-                f"🆔 Process ID : {pid}\n"
-                f"🌐 API : {data['api']}\n"
-                f"📚 Course_id : {data['course']}\n"
-                f"📤 Upload Chat : {data['upload']}\n"
-                f"──────────────\n"
-            )
-
-        await m.reply_text(txt)
-
-    # ================= STOP SINGLE PROCESS =================
-
-    @bot.on_message(filters.command("stoplive") & auth_filter)
-    async def stop_live_process(client, m: Message):
-
         try:
-            parts = m.text.split()
-
-            if len(parts) != 2:
-                return await m.reply_text("❌ Usage : /stoplive PROCESS_ID")
-
-            pid = int(parts[1])
-
-            if pid not in ACTIVE_LIVES:
-                return await m.reply_text("❌ Process not found")
-
-            task = ACTIVE_LIVES[pid]["task"]
-            proc = ACTIVE_LIVES[pid].get("proc")
-
-            task.cancel()
-
-            if proc:
-                proc.kill()
-
-            ACTIVE_LIVES.pop(pid, None)
-
-            await m.reply_text(f"🛑 LIVE PROCESS {pid} STOPPED")
-
+            async with aiohttp.ClientSession() as session:
+                # Get exam_id first from course details if needed, or try without it
+                url = f"{self.config.api_base}/get/courselistnewv2?exam_id=&start=-1"
+                async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                    if resp.status != 200:
+                        return "Unknown Batch"
+                    
+                    try:
+                        data = await resp.json()
+                    except Exception:
+                        return "Unknown Batch"
+                    
+                    if not isinstance(data, dict):
+                        return "Unknown Batch"
+                    
+                    # Search for course_id in the list
+                    courses = data.get("data", {}).get("course_list", [])
+                    for course in courses:
+                        if str(course.get("id")) == str(self.config.course_id):
+                            course_slug = course.get("course_slug", "")
+                            # Convert slug to readable name
+                            # e.g., "psi-2026-detailed-live-solution-3-papers" -> "PSI 2026 Detailed Live Solution 3 Papers"
+                            if course_slug:
+                                batch_name = course_slug.replace("-", " ").title()
+                                return batch_name
+                    
+                    return "Unknown Batch"
+                    
         except Exception as e:
-            await m.reply_text(f"❌ Error : {e}")
+            print(f"[PID {self.config.pid}] Error fetching batch name: {e}")
+            return "Unknown Batch"
+    
+    async def fetch_live_data(self) -> tuple:
+        """Fetch live data with proper error handling"""
+        headers = {
+            "Authorization": self.config.token,
+            "Client-Service": "Appx",
+            "Auth-Key": "appxapi",
+            "User-ID": "-2",
+            "User-Agent": "okhttp/4.9.1"
+        }
 
-    # ================= STOP ALL PROCESS =================
+        endpoints = [
+            f"/get/live_upcoming_course_classv2?start=-1&courseid={self.config.course_id}",
+            f"/get/course_contents_by_live_status?course_id={self.config.course_id}&start=-1&live_status=1,2"
+        ]
 
-    @bot.on_message(filters.command("killalllive") & auth_filter)
-    async def stop_all_live(client, m: Message):
-
-        if not ACTIVE_LIVES:
-            return await m.reply_text("❌ No Active Processes")
-
-        stopped = 0
-
-        for pid, data in list(ACTIVE_LIVES.items()):
+        async with aiohttp.ClientSession() as session:
+            for ep in endpoints:
+                try:
+                    url = f"{self.config.api_base}{ep}"
+                    async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                        
+                        if resp.status in [401, 403]:
+                            return "AUTH_ERROR", None, None
+                        
+                        if resp.status != 200:
+                            continue
+                        
+                        try:
+                            data = await resp.json()
+                        except Exception:
+                            continue
+                        
+                        if not isinstance(data, dict):
+                            continue
+                            
+                        live_data = data.get("data", {}).get("live", [])
+                        if not live_data:
+                            continue
+                        
+                        item = live_data[0]
+                        title = item.get("Title", "LIVE")
+                        sid = item.get("recording_schedule")
+                        
+                        if not sid:
+                            return None, None, None
+                        
+                        # Construct stream URL with fixed quality (480p)
+                        stream_url = f"https://liveclasses.cloud-front.in/live/{sid}_480p.m3u8"
+                        
+                        return title, sid, stream_url
+                        
+                except asyncio.TimeoutError:
+                    print(f"[PID {self.config.pid}] Timeout fetching live data from {ep}")
+                    continue
+                except Exception as e:
+                    print(f"[PID {self.config.pid}] Error fetching from {ep}: {e}")
+                    continue
+        
+        return None, None, None
+    
+    def build_ffmpeg_cmd(self, stream_url: str, output_file: str) -> list:
+        """Build optimized ffmpeg command"""
+        return [
+            "ffmpeg",
+            "-y",
+            "-hide_banner",  # Less verbose
+            "-loglevel", "error",  # Only show errors
+            "-fflags", "+genpts+discardcorrupt",  # Handle corrupt streams
+            "-thread_queue_size", "4096",  # Prevent buffer overruns
+            "-i", stream_url,
+            "-c", "copy",
+            "-bsf:a", "aac_adtstoasc",
+            "-movflags", "+faststart",
+            "-map", "0",
+            "-f", "mp4",
+            output_file
+        ]
+    
+    async def start_recording(self, title: str, sid: str, stream_url: str):
+        """Start new recording with proper setup"""
+        async with self._lock:
+            self.current_live = sid
+            self.last_title = title
+            self.start_time = datetime.now()
+            self.live_missing_count = 0
+            
+            # Sanitize filename - use Title (batch name nahi, wo caption mein ayega)
+            safe_title = re.sub(r\'[\\\\/*?:"<>|]\', "", title or "LIVE").strip()[:50]
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            self.live_file = os.path.join(
+                self._temp_dir, 
+                f"{safe_title}_{self.config.pid}_{timestamp}.mp4"
+            )
+            
+            # Notify start
             try:
-                if data.get("proc"):
-                    data["proc"].kill()
+                await self.config.client.send_message(
+                    self.config.upload_chat,
+                    f"🔴 <b>LIVE STARTED</b>\\n"
+                    f"🆔 Process: <code>{self.config.pid:03d}</code>\\n"
+                    f"🎬 <b>{title}</b>\\n"
+                    f"📊 Quality: <code>480p</code>\\n"
+                    f"📚 Batch: <b>{self.config.batch_name}</b>\\n"
+                    f"⬇️ <i>Recording started...</i>\\n"
+                    f"⏰ <code>{datetime.now().strftime(\'%H:%M:%S\')}</code>",
+                    message_thread_id=self.config.thread_id
+                )
+            except Exception as e:
+                print(f"[PID {self.config.pid}] Failed to send start notification: {e}")
+            
+            # Start ffmpeg
+            cmd = self.build_ffmpeg_cmd(stream_url, self.live_file)
+            try:
+                self.proc = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                
+                # Start stderr reader to prevent buffer blocking
+                asyncio.create_task(self._read_stderr())
+                
+            except Exception as e:
+                print(f"[PID {self.config.pid}] Failed to start ffmpeg: {e}")
+                await self._notify_error(f"Failed to start recording: {e}")
+                raise
+    
+    async def _read_stderr(self):
+        """Read ffmpeg stderr to prevent blocking"""
+        if not self.proc:
+            return
+            
+        try:
+            while True:
+                line = await self.proc.stderr.readline()
+                if not line:
+                    break
+                # Log only errors, not info
+                decoded = line.decode().strip()
+                if "error" in decoded.lower():
+                    print(f"[PID {self.config.pid}] FFmpeg: {decoded}")
+        except Exception:
+            pass
+    
+    async def stop_recording(self) -> bool:
+        """Stop recording and upload with proper finalization"""
+        async with self._lock:
+            if not self.current_live:
+                return False
+            
+            # Stop ffmpeg
+            if self.proc and self.proc.returncode is None:
+                try:
+                    # Send Q to gracefully stop ffmpeg (standard way)
+                    self.proc.stdin.close() if self.proc.stdin else None
+                    
+                    # Wait with timeout
+                    await asyncio.wait_for(self.proc.wait(), timeout=FFMPEG_TIMEOUT)
+                except asyncio.TimeoutError:
+                    self.proc.kill()
+                    await self.proc.wait()
+                except Exception as e:
+                    print(f"[PID {self.config.pid}] Error stopping ffmpeg: {e}")
+                finally:
+                    self.proc = None
+            
+            # Check if file exists and has content
+            if not self.live_file or not os.path.exists(self.live_file):
+                await self._notify_error("Recording file not found")
+                self._reset_state()
+                return False
+            
+            file_size = os.path.getsize(self.live_file)
+            if file_size < 1024 * 1024:  # Less than 1MB
+                await self._notify_error(f"File too small ({file_size} bytes), likely failed")
+                os.remove(self.live_file)
+                self._reset_state()
+                return False
+            
+            # Process and upload
+            success = await self._finalize_and_upload()
+            self._reset_state()
+            return success
+    
+    async def _finalize_and_upload(self) -> bool:
+        """Finalize video and upload to Telegram"""
+        original_file = self.live_file
+        fixed_file = os.path.join(self._temp_dir, f"fixed_{os.path.basename(original_file)}")
+        thumb_file = os.path.join(self._temp_dir, "thumb.jpg")
+        
+        try:
+            # Fix video metadata
+            fix_cmd = [
+                "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                "-i", original_file,
+                "-c", "copy", "-map", "0",
+                "-movflags", "+faststart",
+                fixed_file
+            ]
+            
+            proc = await asyncio.create_subprocess_exec(*fix_cmd)
+            await asyncio.wait_for(proc.wait(), timeout=60)
+            
+            if not os.path.exists(fixed_file) or os.path.getsize(fixed_file) == 0:
+                raise Exception("Video fixing failed")
+            
+            # Get duration
+            duration_cmd = [
+                "ffprobe", "-v", "error",
+                "-show_entries", "format=duration",
+                "-of", "csv=p=0",
+                fixed_file
+            ]
+            
+            proc = await asyncio.create_subprocess_exec(
+                *duration_cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            
+            stdout, _ = await proc.communicate()
+            duration = int(float(stdout.decode().strip())) if stdout else 0
+            
+            # Generate thumbnail (at 10% or 5 seconds, whichever is smaller)
+            thumb_time = min(duration * 0.1, 5) if duration else 5
+            thumb_cmd = [
+                "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                "-i", fixed_file,
+                "-ss", str(thumb_time), "-vframes", "1",
+                "-vf", "scale=320:-1",  # Smaller thumbnail
+                thumb_file
+            ]
+            
+            proc = await asyncio.create_subprocess_exec(*thumb_cmd)
+            await proc.wait()
+            
+            # Build caption - Title in filename, Batch name in caption
+            end_time = datetime.now()
+            duration_str = f"{duration // 3600:02d}:{(duration % 3600) // 60:02d}:{duration % 60:02d}" if duration else "Unknown"
+            
+            # File name mein Title rahega (original title from API)
+            caption = (
+                f"🎥 <b>Live Recording</b>\\n"
+                f"🆔 ID: <code>{self.config.pid:03d}</code>\\n"
+                f"📛 <b>{self.last_title or \'Unknown\'}</b> [480p].mp4\\n"
+                f"📚 Batch: <b>{self.config.batch_name}</b>\\n"
+                f"⏱ Duration: <code>{duration_str}</code>\\n"
+                f"📦 Size: <code>{os.path.getsize(fixed_file) / (1024*1024):.1f} MB</code>\\n"
+                f"<blockquote>📚 {self.config.batch_name}</blockquote>\\n\\n"
+                f"<b>🎓 Extracted by ➤ 𝙂𝙃𝙊𝙎𝙏•𝙍𝙄𝙓</b>\\n"
+                f"⏰ <code>{end_time.strftime(\'%H:%M:%S\')}</code>"
+            )
+            
+            # Upload with progress
+            await self.config.client.send_video(
+                self.config.upload_chat,
+                fixed_file,
+                caption=caption,
+                supports_streaming=True,
+                thumb=thumb_file if os.path.exists(thumb_file) else None,
+                duration=duration if duration > 0 else None,
+                message_thread_id=self.config.thread_id,
+                progress=self._upload_progress
+            )
+            
+            # Cleanup files
+            for f in [original_file, fixed_file, thumb_file]:
+                if f and os.path.exists(f):
+                    try:
+                        os.remove(f)
+                    except:
+                        pass
+            
+            return True
+            
+        except Exception as e:
+            print(f"[PID {self.config.pid}] Finalize error: {e}")
+            await self._notify_error(f"Upload failed: {str(e)[:100]}")
+            
+            # Cleanup on failure
+            for f in [original_file, fixed_file, thumb_file]:
+                if f and os.path.exists(f):
+                    try:
+                        os.remove(f)
+                    except:
+                        pass
+            return False
+    
+    async def _upload_progress(self, current, total):
+        """Optional: Log upload progress"""
+        if total:
+            percent = (current / total) * 100
+            if int(percent) % 25 == 0:  # Log at 0, 25, 50, 75, 100
+                print(f"[PID {self.config.pid}] Upload: {percent:.1f}%")
+    
+    async def _notify_error(self, error_msg: str):
+        """Send error notification to owner"""
+        try:
+            await self.config.client.send_message(
+                self.config.owner_chat,
+                f"⚠️ <b>Process {self.config.pid:03d} Error</b>\\n"
+                f"<blockquote>{error_msg}</blockquote>\\n"
+                f"🎬 Title: {self.last_title or \'N/A\'}\\n"
+                f"📚 Batch: {self.config.batch_name}\\n"
+                f"⏰ <code>{datetime.now().strftime(\'%H:%M:%S\')}</code>"
+            )
+        except Exception as e:
+            print(f"[PID {self.config.pid}] Failed to send error notification: {e}")
+    
+    def _reset_state(self):
+        """Reset internal state"""
+        self.current_live = None
+        self.live_file = None
+        self.start_time = None
+        self.live_missing_count = 0
+    
+    async def run(self):
+        """Main recording loop"""
+        try:
+            # Fetch batch name first
+            self.config.batch_name = await self.fetch_batch_name()
+            
+            await self.config.client.send_message(
+                self.config.owner_chat,
+                f"✅ <b>Live Monitor Started</b>\\n"
+                f"🆔 Process: <code>{self.config.pid:03d}</code>\\n"
+                f"📚 Course: <code>{self.config.course_id}</code>\\n"
+                f"📦 Batch: <b>{self.config.batch_name}</b>\\n"
+                f"📤 Upload to: <code>{self.config.upload_chat}</code>\\n"
+                f"⏱ Check interval: <code>{CHECK_INTERVAL}s</code>"
+            )
+            
+            while not self._shutdown_event.is_set():
+                try:
+                    title, sid, stream_url = await self.fetch_live_data()
+                    
+                    # Handle auth error
+                    if title == "AUTH_ERROR":
+                        await self.config.client.send_message(
+                            self.config.owner_chat,
+                            f"❌ <b>Process {self.config.pid:03d}:</b> Token expired or invalid"
+                        )
+                        break
+                    
+                    # Live started
+                    if sid and sid != self.current_live:
+                        if self.current_live:
+                            # Previous live ended, finalize it
+                            await self.stop_recording()
+                        
+                        await self.start_recording(title, sid, stream_url)
+                    
+                    # Live ended
+                    elif not sid and self.current_live:
+                        self.live_missing_count += 1
+                        
+                        if self.live_missing_count >= MAX_LIVE_MISSING_COUNT:
+                            await self.stop_recording()
+                    
+                    # Reset counter if live came back
+                    elif sid and self.current_live and sid == self.current_live:
+                        self.live_missing_count = 0
+                    
+                    # Check max duration
+                    if (self.config.max_duration and self.start_time and 
+                        (datetime.now() - self.start_time).total_seconds() > self.config.max_duration):
+                        await self.config.client.send_message(
+                            self.config.owner_chat,
+                            f"⏹ <b>Process {self.config.pid:03d}:</b> Max duration reached, stopping..."
+                        )
+                        await self.stop_recording()
+                    
+                    # Wait for next check
+                    try:
+                        await asyncio.wait_for(
+                            self._shutdown_event.wait(), 
+                            timeout=CHECK_INTERVAL
+                        )
+                    except asyncio.TimeoutError:
+                        pass  # Normal operation, continue loop
+                        
+                except Exception as e:
+                    print(f"[PID {self.config.pid}] Loop error: {e}")
+                    await asyncio.sleep(5)  # Brief pause on error
+            
+        except asyncio.CancelledError:
+            print(f"[PID {self.config.pid}] Task cancelled")
+        finally:
+            # Final cleanup
+            if self.current_live:
+                await self.stop_recording()
+            await self.cleanup()
+    
+    def stop(self):
+        """Signal shutdown"""
+        self._shutdown_event.set()
 
+
+# ================= COMMAND HANDLERS =================
+
+def setup_live(bot):
+    
+    @bot.on_message(filters.command("addlive") & auth_filter)
+    async def add_live_multi(client, message):
+        """Add new live monitoring process"""
+        global PROCESS_COUNTER
+        
+        try:
+            # Get API details
+            await message.reply_text("🌐 Send API HOST (e.g., https://api.example.com)")
+            response = await client.listen(message.chat.id)
+            api_base = response.text.strip()
+            await response.delete()
+            
+            await message.reply_text("📚 Send COURSE ID")
+            response = await client.listen(message.chat.id)
+            course_id = response.text.strip()
+            await response.delete()
+            
+            await message.reply_text("🔐 Send AUTH TOKEN")
+            response = await client.listen(message.chat.id)
+            token = response.text.strip()
+            await response.delete()
+            
+            await message.reply_text(
+                "📤 Send CHAT ID for upload\\n"
+                "• Send <code>/d</code> for current chat\\n"
+                "• Format: <code>-100123456789</code>\\n"
+                "• With topic: <code>-100123456789/123</code>"
+            )
+            response = await client.listen(message.chat.id)
+            chat_input = response.text.strip()
+            await response.delete()
+            
+            # Parse chat input
+            if chat_input == "/d":
+                upload_chat = message.chat.id
+                thread_id = None
+            else:
+                if "/" in chat_input:
+                    base, topic = chat_input.split("/", 1)
+                    upload_chat = int(base.strip())
+                    thread_id = int(topic.strip())
+                else:
+                    upload_chat = int(chat_input)
+                    thread_id = None
+            
+            # Quality fixed at 480p - no selection needed
+            quality = "480p"
+            
+            # Create process
+            PROCESS_COUNTER += 1
+            pid = PROCESS_COUNTER
+            
+            config = LiveConfig(
+                pid=pid,
+                api_base=api_base,
+                course_id=course_id,
+                token=token,
+                upload_chat=upload_chat,
+                thread_id=thread_id,
+                client=client,
+                owner_chat=message.chat.id,
+                quality=quality
+            )
+            
+            recorder = LiveRecorder(config)
+            
+            # Store and start
+            task = asyncio.create_task(recorder.run())
+            ACTIVE_LIVES[pid] = {
+                "recorder": recorder,
+                "task": task,
+                "config": config,
+                "started_at": datetime.now()
+            }
+            
+            await message.reply_text(
+                f"✅ <b>Live Monitor Started</b>\\n\\n"
+                f"🆔 Process ID: <code>{pid:03d}</code>\\n"
+                f"🌐 API: <code>{api_base[:30]}...</code>\\n"
+                f"📚 Course: <code>{course_id}</code>\\n"
+                f"📤 Upload: <code>{upload_chat}</code>\\n"
+                f"🎥 Quality: <code>480p (Fixed)</code>\\n\\n"
+                f"Use <code>/stoplive {pid}</code> to stop"
+            )
+            
+        except Exception as e:
+            await message.reply_text(f"❌ <b>Error:</b> <code>{str(e)[:200]}</code>")
+    
+    @bot.on_message(filters.command("process") & auth_filter)
+    async def list_processes(client, message):
+        """List all active live processes"""
+        if not ACTIVE_LIVES:
+            return await message.reply_text("❌ No active live processes")
+        
+        text = "📊 <b>Active Live Processes</b>\\n\\n"
+        
+        for pid, data in sorted(ACTIVE_LIVES.items()):
+            config = data["config"]
+            started = data["started_at"].strftime("%H:%M:%S")
+            recorder = data["recorder"]
+            
+            status = "🔴 Recording" if recorder.current_live else "⏳ Waiting"
+            current = recorder.last_title or "N/A"
+            batch = config.batch_name or "Fetching..."
+            
+            text += (
+                f"🆔 <code>{pid:03d}</code> | {status}\\n"
+                f"├ 🎬 {current[:30]}...\\n"
+                f"├ 📦 {batch[:30]}...\\n"
+                f"├ 📚 {config.course_id}\\n"
+                f"├ 📤 {config.upload_chat}\\n"
+                f"├ 🎥 480p\\n"
+                f"└ ⏰ Started: {started}\\n\\n"
+            )
+        
+        text += f"Total: <code>{len(ACTIVE_LIVES)}</code> processes"
+        await message.reply_text(text)
+    
+    @bot.on_message(filters.command("stoplive") & auth_filter)
+    async def stop_live(client, message):
+        """Stop specific live process"""
+        try:
+            parts = message.text.split()
+            if len(parts) != 2:
+                return await message.reply_text("❌ Usage: <code>/stoplive PROCESS_ID</code>")
+            
+            pid = int(parts[1])
+            
+            if pid not in ACTIVE_LIVES:
+                return await message.reply_text(f"❌ Process <code>{pid:03d}</code> not found")
+            
+            data = ACTIVE_LIVES[pid]
+            
+            # Signal shutdown
+            data["recorder"].stop()
+            
+            # Cancel task
+            data["task"].cancel()
+            
+            try:
+                await asyncio.wait_for(data["task"], timeout=10)
+            except (asyncio.CancelledError, asyncio.TimeoutError):
+                pass
+            
+            # Cleanup
+            ACTIVE_LIVES.pop(pid, None)
+            
+            await message.reply_text(f"🛑 Process <code>{pid:03d}</code> stopped successfully")
+            
+        except ValueError:
+            await message.reply_text("❌ Invalid process ID")
+        except Exception as e:
+            await message.reply_text(f"❌ Error: <code>{str(e)[:100]}</code>")
+    
+    @bot.on_message(filters.command("killalllive") & auth_filter)
+    async def stop_all_live(client, message):
+        """Stop all live processes"""
+        if not ACTIVE_LIVES:
+            return await message.reply_text("❌ No active processes")
+        
+        count = len(ACTIVE_LIVES)
+        stopped = 0
+        failed = 0
+        
+        # Create copy to avoid modification during iteration
+        items = list(ACTIVE_LIVES.items())
+        
+        for pid, data in items:
+            try:
+                data["recorder"].stop()
                 data["task"].cancel()
+                
+                try:
+                    await asyncio.wait_for(data["task"], timeout=5)
+                except (asyncio.CancelledError, asyncio.TimeoutError):
+                    pass
+                
                 ACTIVE_LIVES.pop(pid, None)
                 stopped += 1
+                
+            except Exception as e:
+                print(f"Error stopping {pid}: {e}")
+                failed += 1
+        
+        await message.reply_text(
+            f"🛑 <b>All Processes Stopped</b>\\n\\n"
+            f"✅ Stopped: <code>{stopped}</code>\\n"
+            f"❌ Failed: <code>{failed}</code>\\n"
+            f"📊 Total: <code>{count}</code>"
+        )
+    
+    @bot.on_message(filters.command("livestats") & auth_filter)
+    async def live_stats(client, message):
+        try:
+            parts = message.text.split()
+            if len(parts) != 2:
+                return await message.reply_text("❌ Usage: <code>/livestats PROCESS_ID</code>", parse_mode="html")
+            
+            pid = int(parts[1])
+            
+            if pid not in ACTIVE_LIVES:
+                return await message.reply_text(f"❌ Process <code>{pid:03d}</code> not found", parse_mode="html")
+            
+            data = ACTIVE_LIVES[pid]
+            recorder = data["recorder"]
+            config = data["config"]
+            
+            uptime = datetime.now() - data["started_at"]
+            uptime_str = str(uptime).split('.')[0]
+            
+            text = (
+                f"📈 <b>Process {pid:03d} Stats</b>\n\n"
+                f"🎬 Current: <code>{recorder.last_title or 'N/A'}</code>\n"
+                f"📦 Batch: <b>{config.batch_name or 'Fetching...'}</b>\n"
+                f"🔴 Recording: <code>{'Yes' if recorder.current_live else 'No'}</code>\n"
+                f"📁 File: <code>{recorder.live_file or 'N/A'}</code>\n"
+                f"⏱ Uptime: <code>{uptime_str}</code>\n"
+                f"📚 Course: <code>{config.course_id}</code>\n"
+                f"🎥 Quality: <code>480p</code>\n"
+                f"📤 Upload: <code>{config.upload_chat}</code>\n"
+                f"👤 Owner: <code>{config.owner_chat}</code>"
+            )
+            
+            await message.reply_text(text, parse_mode="html")
+            
+        except Exception as e:
+            await message.reply_text(f"❌ Error: <code>{str(e)[:100]}</code>", parse_mode="html")
 
-            except:
-                pass
 
-        await m.reply_text(f"🛑 ALL LIVE PROCESSES STOPPED\nTotal : {stopped}")
 
 
 print("Bot Started...")
