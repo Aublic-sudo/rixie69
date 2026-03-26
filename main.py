@@ -2132,7 +2132,7 @@ def setup_live(bot):
             )
         
         text += f"Total: <code>{len(ACTIVE_LIVES)}</code> processes"
-        await message.reply_text(text, parse_mode="html")
+        await message.reply_text(text)
     
     @bot.on_message(filters.command("stoplive") & auth_filter)
     async def stop_live(client, message):
