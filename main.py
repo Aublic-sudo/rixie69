@@ -1,3 +1,4 @@
+
 # 🔧 Standard Library
 import os
 import re
@@ -1522,44 +1523,94 @@ class LiveRecorder:
             except Exception as e:
                 print(f"[PID {self.config.pid}] Error removing temp dir: {e}")
     
-    async def fetch_batch_name(self) -> str:
-        """Fetch batch name from course_slug using /get/courselistnewv2 endpoint"""
-        headers = {
-            "Authorization": self.config.token,
-            "Client-Service": "Appx",
-            "Auth-Key": "appxapi",
-            "User-ID": "-2",
-            "User-Agent": "okhttp/4.9.1"
-        }
-
-        try:
-            async with aiohttp.ClientSession() as session:
-                # Get exam_id first from course details if needed, or try without it
-                url = f"{self.config.api_base}/get/courselistnewv2?exam_id=&start=-1"
-                async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                    if resp.status != 200:
-                        return "Unknown Batch"
-                    
-                    try:
-                        data = await resp.json()
-                    except Exception:
-                        return "Unknown Batch"
-                    
-                    if not isinstance(data, dict):
-                        return "Unknown Batch"
-                    
-                    # Search for course_id in the list
-                    courses = data.get("data", {}).get("course_list", [])
-                    for course in courses:
-                        if str(course.get("id")) == str(self.config.course_id):
-                            course_slug = course.get("course_slug", "")
-                            # Convert slug to readable name
-                            # e.g., "psi-2026-detailed-live-solution-3-papers" -> "PSI 2026 Detailed Live Solution 3 Papers"
-                            if course_slug:
-                                batch_name = course_slug.replace("-", " ").title()
+        async def fetch_batch_name(self) -> str:
+            """Fetch batch name from course_slug using /get/courselistnewv2 endpoint"""
+            headers = {
+                "Authorization": self.config.token,
+                "Client-Service": "Appx",
+                "Auth-Key": "appxapi",
+                "User-ID": "-2",
+                "User-Agent": "okhttp/4.9.1"
+            }
+    
+            try:
+                async with aiohttp.ClientSession() as session:
+                    # Get all courses from the API
+                    url = f"{self.config.api_base}/get/courselistnewv2?exam_id=&start=-1"
+                    async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                        if resp.status != 200:
+                            print(f"[PID {self.config.pid}] API returned status {resp.status}")
+                            return "Unknown Batch"
+                        
+                        try:
+                            data = await resp.json()
+                        except Exception as e:
+                            print(f"[PID {self.config.pid}] JSON parse error: {e}")
+                            return "Unknown Batch"
+                        
+                        if not isinstance(data, dict):
+                            print(f"[PID {self.config.pid}] Response is not dict: {type(data)}")
+                            return "Unknown Batch"
+                        
+                        # Debug: Print the response structure
+                        print(f"[PID {self.config.pid}] API Response keys: {list(data.keys())}")
+                        
+                        # Get the course list - handle different response structures
+                        courses = []
+                        if "data" in data and isinstance(data["data"], dict):
+                            courses = data["data"].get("course_list", [])
+                        elif "data" in data and isinstance(data["data"], list):
+                            courses = data["data"]
+                        elif "course_list" in data:
+                            courses = data["course_list"]
+                        elif "courses" in data:
+                            courses = data["courses"]
+                        
+                        print(f"[PID {self.config.pid}] Found {len(courses)} courses, looking for ID: {self.config.course_id}")
+                        
+                        # Search for matching course_id
+                        selected_course = None
+                        target_id = str(self.config.course_id).strip()
+                        
+                        for course in courses:
+                            if not isinstance(course, dict):
+                                continue
+                            
+                            # Check different possible ID field names
+                            course_id = str(course.get("id", "")).strip()
+                            course_id_alt = str(course.get("course_id", "")).strip()
+                            
+                            print(f"[PID {self.config.pid}] Checking course - id: {course_id}, course_id: {course_id_alt}")
+                            
+                            if course_id == target_id or course_id_alt == target_id:
+                                selected_course = course
+                                print(f"[PID {self.config.pid}] Found matching course: {course}")
+                                break
+                        
+                        if selected_course:
+                            # Get batch name from course_slug or other fields
+                            batch_name = selected_course.get("course_slug", "")
+                            if not batch_name:
+                                batch_name = selected_course.get("course_name", "")
+                            if not batch_name:
+                                batch_name = selected_course.get("title", "")
+                            if not batch_name:
+                                batch_name = selected_course.get("name", "")
+                            
+                            if batch_name:
+                                # Convert slug to readable name
+                                batch_name = batch_name.replace("-", " ").title()
+                                print(f"[PID {self.config.pid}] Batch name found: {batch_name}")
                                 return batch_name
-                    
-                    return "Unknown Batch"
+                        
+                        print(f"[PID {self.config.pid}] No matching course found for ID: {target_id}")
+                        return "Unknown Batch"
+                            
+            except Exception as e:
+                print(f"[PID {self.config.pid}] Error fetching batch name: {e}")
+                import traceback
+                traceback.print_exc()
+                return "Unknown Batch"
                     
         except Exception as e:
             print(f"[PID {self.config.pid}] Error fetching batch name: {e}")
@@ -1663,12 +1714,12 @@ class LiveRecorder:
             try:
                 await self.config.client.send_message(
                     self.config.upload_chat,
-                    f"🔴 <b>LIVE STARTED</b>\\n"
-                    f"🆔 Process: <code>{self.config.pid:03d}</code>\\n"
-                    f"🎬 <b>{title}</b>\\n"
-                    f"📊 Quality: <code>480p</code>\\n"
-                    f"📚 Batch: <b>{self.config.batch_name}</b>\\n"
-                    f"⬇️ <i>Recording started...</i>\\n"
+                    f"🔴 <b>LIVE STARTED</b>\n"
+                    f"🆔 Process: <code>{self.config.pid:03d}</code>\n"
+                    f"🎬 <b>{title}</b>\n"
+                    f"📊 Quality: <code>480p</code>\n"
+                    f"📚 Batch: <b>{self.config.batch_name}</b>\n"
+                    f"⬇️ <i>Recording started...</i>\n"
                     f"⏰ <code>{datetime.datetime.now().strftime('%H:%M:%S')}</code>",
                     message_thread_id=self.config.thread_id
                 )
@@ -1807,14 +1858,14 @@ class LiveRecorder:
             
             # File name mein Title rahega (original title from API)
             caption = (
-                f"🎥 <b>Live Recording</b>\\n"
-                f"🆔 ID: <code>{self.config.pid:03d}</code>\\n"
-                f"📛 <b>{self.last_title or 'Unknown'}</b> [480p].mp4\\n"
-                f"📚 Batch: <b>{self.config.batch_name}</b>\\n"
-                f"⏱ Duration: <code>{duration_str}</code>\\n"
-                f"📦 Size: <code>{os.path.getsize(fixed_file) / (1024*1024):.1f} MB</code>\\n"
-                f"<blockquote>📚 {self.config.batch_name}</blockquote>\\n\\n"
-                f"<b>🎓 Extracted by ➤ 𝙂𝙃𝙊𝙎𝙏•𝙍𝙄𝙓</b>\\n"
+                f"🎥 <b>Live Recording</b>\n"
+                f"🆔 ID: <code>{self.config.pid:03d}</code>\n"
+                f"📛 <b>{self.last_title or 'Unknown'}</b> [480p].mp4\n"
+                f"📚 Batch: <b>{self.config.batch_name}</b>\n"
+                f"⏱ Duration: <code>{duration_str}</code>\n"
+                f"📦 Size: <code>{os.path.getsize(fixed_file) / (1024*1024):.1f} MB</code>\n"
+                f"<blockquote>📚 {self.config.batch_name}</blockquote>\n\n"
+                f"<b>🎓 Extracted by ➤ 𝙂𝙃𝙊𝙎𝙏•𝙍𝙄𝙓</b>\n"
                 f"⏰ <code>{end_time.strftime('%H:%M:%S')}</code>"
             )
             
@@ -1865,10 +1916,10 @@ class LiveRecorder:
         try:
             await self.config.client.send_message(
                 self.config.owner_chat,
-                f"⚠️ <b>Process {self.config.pid:03d} Error</b>\\n"
-                f"<blockquote>{error_msg}</blockquote>\\n"
-                f"🎬 Title: {self.last_title or 'N/A'}\\n"
-                f"📚 Batch: {self.config.batch_name}\\n"
+                f"⚠️ <b>Process {self.config.pid:03d} Error</b>\n"
+                f"<blockquote>{error_msg}</blockquote>\n"
+                f"🎬 Title: {self.last_title or 'N/A'}\n"
+                f"📚 Batch: {self.config.batch_name}\n"
                 f"⏰ <code>{datetime.datetime.now().strftime('%H:%M:%S')}</code>"
             )
         except Exception as e:
@@ -1889,11 +1940,11 @@ class LiveRecorder:
             
             await self.config.client.send_message(
                 self.config.owner_chat,
-                f"✅ <b>Live Monitor Started</b>\\n"
-                f"🆔 Process: <code>{self.config.pid:03d}</code>\\n"
-                f"📚 Course: <code>{self.config.course_id}</code>\\n"
-                f"📦 Batch: <b>{self.config.batch_name}</b>\\n"
-                f"📤 Upload to: <code>{self.config.upload_chat}</code>\\n"
+                f"✅ <b>Live Monitor Started</b>\n"
+                f"🆔 Process: <code>{self.config.pid:03d}</code>\n"
+                f"📚 Course: <code>{self.config.course_id}</code>\n"
+                f"📦 Batch: <b>{self.config.batch_name}</b>\n"
+                f"📤 Upload to: <code>{self.config.upload_chat}</code>\n"
                 f"⏱ Check interval: <code>{CHECK_INTERVAL}s</code>"
             )
             
@@ -1990,9 +2041,9 @@ def setup_live(bot):
             await response.delete()
             
             await message.reply_text(
-                "📤 Send CHAT ID for upload\\n"
-                "• Send <code>/d</code> for current chat\\n"
-                "• Format: <code>-100123456789</code>\\n"
+                "📤 Send CHAT ID for upload\n"
+                "• Send <code>/d</code> for current chat\n"
+                "• Format: <code>-100123456789</code>\n"
                 "• With topic: <code>-100123456789/123</code>"
             )
             response = await client.listen(message.chat.id)
@@ -2043,12 +2094,12 @@ def setup_live(bot):
             }
             
             await message.reply_text(
-                f"✅ <b>Live Monitor Started</b>\\n\\n"
-                f"🆔 Process ID: <code>{pid:03d}</code>\\n"
-                f"🌐 API: <code>{api_base[:30]}...</code>\\n"
-                f"📚 Course: <code>{course_id}</code>\\n"
-                f"📤 Upload: <code>{upload_chat}</code>\\n"
-                f"🎥 Quality: <code>480p (Fixed)</code>\\n\\n"
+                f"✅ <b>Live Monitor Started</b>\n\n"
+                f"🆔 Process ID: <code>{pid:03d}</code>\n"
+                f"🌐 API: <code>{api_base[:30]}...</code>\n"
+                f"📚 Course: <code>{course_id}</code>\n"
+                f"📤 Upload: <code>{upload_chat}</code>\n"
+                f"🎥 Quality: <code>480p (Fixed)</code>\n\n"
                 f"Use <code>/stoplive {pid}</code> to stop"
             )
             
@@ -2073,13 +2124,13 @@ def setup_live(bot):
             batch = config.batch_name or "Fetching..."
             
             text += (
-                f"🆔 <code>{pid:03d}</code> | {status}\\n"
-                f"├ 🎬 {current[:30]}...\\n"
-                f"├ 📦 {batch[:30]}...\\n"
-                f"├ 📚 {config.course_id}\\n"
-                f"├ 📤 {config.upload_chat}\\n"
-                f"├ 🎥 480p\\n"
-                f"└ ⏰ Started: {started}\\n\\n"
+                f"🆔 <code>{pid:03d}</code> | {status}\n"
+                f"├ 🎬 {current[:30]}...\n"
+                f"├ 📦 {batch[:30]}...\n"
+                f"├ 📚 {config.course_id}\n"
+                f"├ 📤 {config.upload_chat}\n"
+                f"├ 🎥 480p\n"
+                f"└ ⏰ Started: {started}\n\n"
             )
         
         text += f"Total: <code>{len(ACTIVE_LIVES)}</code> processes"
@@ -2152,11 +2203,11 @@ def setup_live(bot):
                 failed += 1
         
         await message.reply_text(
-            f"🛑 <b>All Processes Stopped</b>\\n\\n"
-            f"✅ Stopped: <code>{stopped}</code>\\n"
-            f"❌ Failed: <code>{failed}</code>\\n"
+            f"🛑 <b>All Processes Stopped</b>\n\n"
+            f"✅ Stopped: <code>{stopped}</code>\n"
+            f"❌ Failed: <code>{failed}</code>\n"
             f"📊 Total: <code>{count}</code>"
-        )
+        ))
     
     @bot.on_message(filters.command("livestats") & auth_filter)
     async def live_stats(client, message):
