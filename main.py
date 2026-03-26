@@ -10,6 +10,7 @@ import shutil
 import zipfile
 import urllib
 import subprocess
+import datetime
 from datetime import datetime, timedelta
 from base64 import b64encode, b64decode
 from subprocess import getstatusoutput
@@ -1647,12 +1648,12 @@ class LiveRecorder:
         async with self._lock:
             self.current_live = sid
             self.last_title = title
-            self.start_time = datetime.now()
+            self.start_time = datetime.datetime.now()
             self.live_missing_count = 0
             
             # Sanitize filename - use Title (batch name nahi, wo caption mein ayega)
             safe_title = re.sub(r'[\\/*?:"<>|]', "", title or "LIVE")
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             self.live_file = os.path.join(
                 self._temp_dir, 
                 f"{safe_title}_{self.config.pid}_{timestamp}.mp4"
@@ -1668,7 +1669,7 @@ class LiveRecorder:
                     f"📊 Quality: <code>480p</code>\\n"
                     f"📚 Batch: <b>{self.config.batch_name}</b>\\n"
                     f"⬇️ <i>Recording started...</i>\\n"
-                    f"⏰ <code>{datetime.now().strftime('%H:%M:%S')}</code>",
+                    f"⏰ <code>{datetime.datetime.now().strftime('%H:%M:%S')}</code>",
                     message_thread_id=self.config.thread_id
                 )
             except Exception as e:
@@ -1801,7 +1802,7 @@ class LiveRecorder:
             await proc.wait()
             
             # Build caption - Title in filename, Batch name in caption
-            end_time = datetime.now()
+            end_time = datetime.datetime.now()
             duration_str = f"{duration // 3600:02d}:{(duration % 3600) // 60:02d}:{duration % 60:02d}" if duration else "Unknown"
             
             # File name mein Title rahega (original title from API)
@@ -1868,7 +1869,7 @@ class LiveRecorder:
                 f"<blockquote>{error_msg}</blockquote>\\n"
                 f"🎬 Title: {self.last_title or 'N/A'}\\n"
                 f"📚 Batch: {self.config.batch_name}\\n"
-                f"⏰ <code>{datetime.now().strftime('%H:%M:%S')}</code>"
+                f"⏰ <code>{datetime.datetime.now().strftime('%H:%M:%S')}</code>"
             )
         except Exception as e:
             print(f"[PID {self.config.pid}] Failed to send error notification: {e}")
@@ -1929,7 +1930,7 @@ class LiveRecorder:
                     
                     # Check max duration
                     if (self.config.max_duration and self.start_time and 
-                        (datetime.now() - self.start_time).total_seconds() > self.config.max_duration):
+                        (datetime.datetime.now() - self.start_time).total_seconds() > self.config.max_duration):
                         await self.config.client.send_message(
                             self.config.owner_chat,
                             f"⏹ <b>Process {self.config.pid:03d}:</b> Max duration reached, stopping..."
@@ -2038,7 +2039,7 @@ def setup_live(bot):
                 "recorder": recorder,
                 "task": task,
                 "config": config,
-                "started_at": datetime.now()
+                "started_at": datetime.datetime.now()
             }
             
             await message.reply_text(
@@ -2173,7 +2174,7 @@ def setup_live(bot):
             recorder = data["recorder"]
             config = data["config"]
             
-            uptime = datetime.now() - data["started_at"]
+            uptime = datetime.datetime.now() - data["started_at"]
             uptime_str = str(uptime).split('.')[0]
             
             text = (
