@@ -27,7 +27,7 @@ import m3u8
 import cloudscraper
 import yt_dlp
 import tgcrypto
-from logs import logging
+
 from bs4 import BeautifulSoup
 from pytube import YouTube
 from Crypto.Cipher import AES
