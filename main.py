@@ -135,8 +135,11 @@ async def set_log_channel_cmd(client: Client, message: Message):
         # Get command arguments
         args = message.text.split()
         if len(args) != 2:
-            await message.reply_text("❌ Invalid format!\n\n"
-                                     "Use: /setlog channel_id\n"
+            await message.reply_text("❌ Invalid format!
+
+"
+                                     "Use: /setlog channel_id
+"
                                      "Example: /setlog -100123456789")
             return
 
@@ -149,8 +152,11 @@ async def set_log_channel_cmd(client: Client, message: Message):
 
         # Set the log channel without validation
         if db.set_log_channel(client.me.username, channel_id):
-            await message.reply_text("✅ Log channel set successfully!\n\n"
-                                     f"Channel ID: {channel_id}\n"
+            await message.reply_text("✅ Log channel set successfully!
+
+"
+                                     f"Channel ID: {channel_id}
+"
                                      f"Bot: @{client.me.username}")
         else:
             await message.reply_text(
@@ -177,19 +183,30 @@ async def get_log_channel_cmd(client: Client, message: Message):
             # Try to get channel info but don't worry if it fails
             try:
                 channel = await client.get_chat(channel_id)
-                channel_info = f"📢 Channel Name: {channel.title}\n"
+                channel_info = f"📢 Channel Name: {channel.title}
+"
             except:
                 channel_info = ""
 
-            await message.reply_text(f"**📋 Log Channel Info**\n\n"
-                                     f"🤖 Bot: @{client.me.username}\n"
+            await message.reply_text(f"**📋 Log Channel Info**
+
+"
+                                     f"🤖 Bot: @{client.me.username}
+"
                                      f"{channel_info}"
-                                     f"🆔 Channel ID: `{channel_id}`\n\n"
+                                     f"🆔 Channel ID: `{channel_id}`
+
+"
                                      "Use /setlog to change the log channel")
         else:
-            await message.reply_text(f"**📋 Log Channel Info**\n\n"
-                                     f"🤖 Bot: @{client.me.username}\n"
-                                     "❌ No log channel set\n\n"
+            await message.reply_text(f"**📋 Log Channel Info**
+
+"
+                                     f"🤖 Bot: @{client.me.username}
+"
+                                     "❌ No log channel set
+
+"
                                      "Use /setlog to set a log channel")
 
     except Exception as e:
@@ -267,7 +284,8 @@ async def cookies_handler(client: Client, m: Message):
             target_file.write(cookies_content)
 
         await input_message.reply_text(
-            "✅ Cookies updated successfully.\n📂 Saved in `youtube_cookies.txt`."
+            "✅ Cookies updated successfully.
+📂 Saved in `youtube_cookies.txt`."
         )
 
     except Exception as e:
@@ -279,7 +297,8 @@ async def text_to_txt(client, message: Message):
     user_id = str(message.from_user.id)
     # Inform the user to send the text data and its desired file name
     editable = await message.reply_text(
-        f"<blockquote>Welcome to the Text to .txt Converter!\nSend the **text** for convert into a `.txt` file.</blockquote>"
+        f"<blockquote>Welcome to the Text to .txt Converter!
+Send the **text** for convert into a `.txt` file.</blockquote>"
     )
     input_message: Message = await bot.listen(message.chat.id)
     if not input_message.text:
@@ -309,7 +328,9 @@ async def text_to_txt(client, message: Message):
     await message.reply_document(
         document=txt_file,
         caption=
-        f"`{custom_file_name}.txt`\n\n<blockquote>You can now download your content! 📥</blockquote>"
+        f"`{custom_file_name}.txt`
+
+<blockquote>You can now download your content! 📥</blockquote>"
     )
     os.remove(txt_file)
 
@@ -346,10 +367,16 @@ async def start(bot: Client, m: Message):
                 return
 
             await m.reply_text(
-                "**✨ Bot is active in this channel**\n\n"
-                "**Available Commands:**\n"
-                "• /drm - Download DRM videos\n"
-                "• /plan - View channel subscription\n\n"
+                "**✨ Bot is active in this channel**
+
+"
+                "**Available Commands:**
+"
+                "• /drm - Download DRM videos
+"
+                "• /plan - View channel subscription
+
+"
                 "Send these commands in the channel to use them.")
         else:
             # Check user authorization
@@ -361,7 +388,10 @@ async def start(bot: Client, m: Message):
                 await m.reply_photo(
                     photo=photologo,
                     caption=
-                    "**Mʏ Nᴀᴍᴇ [DRM Wɪᴢᴀʀᴅ 🦋](https://t.me/RixieHQ)\n\nYᴏᴜ ᴅᴏɴ'ᴛ ʜᴀᴠᴇ ᴀᴄᴄᴇꜱꜱ ᴛᴏ ᴜꜱᴇ ᴛʜɪꜱ ʙᴏᴛ\nCᴏɴᴛᴀᴄᴛ Owner(https://t.me/RixieHQ) ғᴏʀ ᴀᴄᴄᴇꜱꜱ**",
+                    "**Mʏ Nᴀᴍᴇ [DRM Wɪᴢᴀʀᴅ 🦋](https://t.me/RixieHQ)
+
+Yᴏᴜ ᴅᴏɴ'ᴛ ʜᴀᴠᴇ ᴀᴄᴄᴇꜱꜱ ᴛᴏ ᴜꜱᴇ ᴛʜɪꜱ ʙᴏᴛ
+Cᴏɴᴛᴀᴄᴛ Owner(https://t.me/RixieHQ) ғᴏʀ ᴀᴄᴄᴇꜱꜱ**",
                     reply_markup=InlineKeyboardMarkup(
                         [[
                             InlineKeyboardButton(
@@ -376,17 +406,24 @@ async def start(bot: Client, m: Message):
                          ]]))
                 return
 
-            commands_list = ("**>  /drm - ꜱᴛᴀʀᴛ ᴜᴘʟᴏᴀᴅɪɴɢ ᴄᴘ/ᴄᴡ ᴄᴏᴜʀꜱᴇꜱ**\n"
-                             "**>  /plan - ᴠɪᴇᴡ ʏᴏᴜʀ ꜱᴜʙꜱᴄʀɪᴘᴛɪᴏɴ ᴅᴇᴛᴀɪʟꜱ**\n")
+            commands_list = ("**>  /drm - ꜱᴛᴀʀᴛ ᴜᴘʟᴏᴀᴅɪɴɢ ᴄᴘ/ᴄᴡ ᴄᴏᴜʀꜱᴇꜱ**
+"
+                             "**>  /plan - ᴠɪᴇᴡ ʏᴏᴜʀ ꜱᴜʙꜱᴄʀɪᴘᴛɪᴏɴ ᴅᴇᴛᴀɪʟꜱ**
+")
 
             if is_admin:
-                commands_list += ("\n**👑 Admin Commands**\n"
-                                  "• /users - List all users\n")
+                commands_list += ("
+**👑 Admin Commands**
+"
+                                  "• /users - List all users
+")
 
             await m.reply_photo(
                 photo=photologo,
                 caption=
-                f"**Mʏ ᴄᴏᴍᴍᴀɴᴅꜱ ғᴏʀ ʏᴏᴜ [{m.from_user.first_name} ](tg://settings)**\n\n{commands_list}",
+                f"**Mʏ ᴄᴏᴍᴍᴀɴᴅꜱ ғᴏʀ ʏᴏᴜ [{m.from_user.first_name} ](tg://settings)**
+
+{commands_list}",
                 reply_markup=InlineKeyboardMarkup(
                     [[
                         InlineKeyboardButton(
@@ -410,8 +447,11 @@ async def start(bot: Client, m: Message):
 @bot.on_message(~auth_filter & filters.private & filters.command)
 async def unauthorized_handler(client, message: Message):
     await message.reply(
-        "<b>Mʏ Nᴀᴍᴇ [DRM Wɪᴢᴀʀᴅ 🦋](https://t.me/RixieHQ)</b>\n\n"
-        "<blockquote>You need to have an active subscription to use this bot.\n"
+        "<b>Mʏ Nᴀᴍᴇ [DRM Wɪᴢᴀʀᴅ 🦋](https://t.me/RixieHQ)</b>
+
+"
+        "<blockquote>You need to have an active subscription to use this bot.
+"
         "Please contact admin to get premium access.</blockquote>",
         reply_markup=InlineKeyboardMarkup([[
             InlineKeyboardButton("💫 Get Premium Access",
@@ -423,7 +463,8 @@ async def unauthorized_handler(client, message: Message):
 async def id_command(client, message: Message):
     chat_id = message.chat.id
     await message.reply_text(
-        f"<blockquote>The ID of this chat id is:</blockquote>\n`{chat_id}`")
+        f"<blockquote>The ID of this chat id is:</blockquote>
+`{chat_id}`")
 
 
 @bot.on_message(filters.command(["t2h"]) & auth_filter)
@@ -453,7 +494,8 @@ async def send_logs(client: Client, m: Message):
             await sent.delete()
     except Exception as e:
         await m.reply_text(
-            f"**Error sending logs:**\n<blockquote>{e}</blockquote>")
+            f"**Error sending logs:**
+<blockquote>{e}</blockquote>")
 
 
 @bot.on_message(filters.command(["drm"]) & auth_filter)
@@ -472,9 +514,15 @@ async def txt_handler(bot: Client, m: Message):
             return
 
     editable = await m.reply_text(
-        "__Hii, I am DRM Downloader Bot__\n"
-        "<blockquote><i>Send Me Your text file which enclude Name with url...\nE.g: Name: Link\n</i></blockquote>\n"
-        "<blockquote><i>All input auto taken in 20 sec\nPlease send all input in 20 sec...\n</i></blockquote>"
+        "__Hii, I am DRM Downloader Bot__
+"
+        "<blockquote><i>Send Me Your text file which enclude Name with url...
+E.g: Name: Link
+</i></blockquote>
+"
+        "<blockquote><i>All input auto taken in 20 sec
+Please send all input in 20 sec...
+</i></blockquote>"
     )
     input: Message = await bot.listen(editable.chat.id)
 
@@ -514,7 +562,8 @@ async def txt_handler(bot: Client, m: Message):
         # Debug: Print file content
         print(f"File content: {content[:500]}...")  # Print first 500 chars
 
-        content = content.split("\n")
+        content = content.split("
+")
         content = [line.strip() for line in content
                    if line.strip()]  # Remove empty lines
 
@@ -564,11 +613,17 @@ async def txt_handler(bot: Client, m: Message):
         return
 
     await editable.edit(
-        f"**Total 🔗 links found are {len(links)}\n"
-        f"ᴘᴅғ : {pdf_count}   ɪᴍɢ : {img_count}   ᴠ𝟸 : {v2_count} \n"
-        f"ᴢɪᴘ : {zip_count}   ᴅʀᴍ : {drm_count}   ᴍ𝟹ᴜ𝟾 : {m3u8_count}\n"
-        f"ᴍᴘᴅ : {mpd_count}   ʏᴛ : {yt_count}\n"
-        f"Oᴛʜᴇʀꜱ : {other_count}\n\n"
+        f"**Total 🔗 links found are {len(links)}
+"
+        f"ᴘᴅғ : {pdf_count}   ɪᴍɢ : {img_count}   ᴠ𝟸 : {v2_count} 
+"
+        f"ᴢɪᴘ : {zip_count}   ᴅʀᴍ : {drm_count}   ᴍ𝟹ᴜ𝟾 : {m3u8_count}
+"
+        f"ᴍᴘᴅ : {mpd_count}   ʏᴛ : {yt_count}
+"
+        f"Oᴛʜᴇʀꜱ : {other_count}
+
+"
         f"Send Your Index File ID Between 1-{len(links)} .**", )
 
     chat_id = editable.chat.id
@@ -591,7 +646,8 @@ async def txt_handler(bot: Client, m: Message):
     chat_id = editable.chat.id
     timeout_duration = 3 if auto_flags.get(chat_id) else 20
     await editable.edit(
-        f"**1. Enter Batch Name\n2.Send /d For TXT Batch Name**")
+        f"**1. Enter Batch Name
+2.Send /d For TXT Batch Name**")
     try:
         input1: Message = await bot.listen(editable.chat.id,
                                            timeout=timeout_duration)
@@ -608,7 +664,12 @@ async def txt_handler(bot: Client, m: Message):
     chat_id = editable.chat.id
     timeout_duration = 3 if auto_flags.get(chat_id) else 20
     await editable.edit(
-        "**🎞️  Eɴᴛᴇʀ  Rᴇꜱᴏʟᴜᴛɪᴏɴ\n\n╭━━⪼  `360`\n┣━━⪼  `480`\n┣━━⪼  `720`\n╰━━⪼  `1080`**"
+        "**🎞️  Eɴᴛᴇʀ  Rᴇꜱᴏʟᴜᴛɪᴏɴ
+
+╭━━⪼  `360`
+┣━━⪼  `480`
+┣━━⪼  `720`
+╰━━⪼  `1080`**"
     )
     try:
         input2: Message = await bot.listen(editable.chat.id,
@@ -639,7 +700,8 @@ async def txt_handler(bot: Client, m: Message):
     timeout_duration = 3 if auto_flags.get(chat_id) else 20
 
     await editable.edit(
-        "**1. Send A Text For Watermark\n2. Send /d for no watermark & fast dwnld**"
+        "**1. Send A Text For Watermark
+2. Send /d for no watermark & fast dwnld**"
     )
     try:
         inputx: Message = await bot.listen(editable.chat.id,
@@ -657,7 +719,8 @@ async def txt_handler(bot: Client, m: Message):
         watermark = raw_textx
 
     await editable.edit(
-        f"**1. Send Your Name For Caption Credit\n2. Send /d For default Credit **"
+        f"**1. Send Your Name For Caption Credit
+2. Send /d For default Credit **"
     )
     try:
         input3: Message = await bot.listen(editable.chat.id,
@@ -676,7 +739,8 @@ async def txt_handler(bot: Client, m: Message):
     chat_id = editable.chat.id
     timeout_duration = 3 if auto_flags.get(chat_id) else 20
     await editable.edit(
-        f"**1. Send PW Token For MPD urls\n 2. Send /d For Others **")
+        f"**1. Send PW Token For MPD urls
+ 2. Send /d For Others **")
     try:
         input4: Message = await bot.listen(editable.chat.id,
                                            timeout=timeout_duration)
@@ -687,7 +751,9 @@ async def txt_handler(bot: Client, m: Message):
     chat_id = editable.chat.id
     timeout_duration = 3 if auto_flags.get(chat_id) else 20
     await editable.edit(
-        "**1. Send A Image For Thumbnail\n2. Send /d For default Thumbnail\n3. Send /skip For Skipping**"
+        "**1. Send A Image For Thumbnail
+2. Send /d For default Thumbnail
+3. Send /skip For Skipping**"
     )
     thumb = "/d"  # Set default value
     try:
@@ -735,7 +801,12 @@ async def txt_handler(bot: Client, m: Message):
         await asyncio.sleep(1)
 
     await editable.edit(
-        "__**📢 Provide the Channel ID or send /d__\n\n<blockquote>🔹Send Your Channel ID where you want upload files.\n\nEx : -100XXXXXXXXX</blockquote>\n**"
+        "__**📢 Provide the Channel ID or send /d__
+
+<blockquote>🔹Send Your Channel ID where you want upload files.
+
+Ex : -100XXXXXXXXX</blockquote>
+**"
     )
     try:
         input7: Message = await bot.listen(editable.chat.id,
@@ -761,12 +832,16 @@ async def txt_handler(bot: Client, m: Message):
                 await bot.send_message(
                     chat_id=m.chat.id,
                     text=
-                    f"<blockquote><b><i>🎯Target Batch : {b_name}</i></b></blockquote>\n\n🔄 Your Task is under processing, please check your Set Channel📱. Once your task is complete, I will inform you 📩"
+                    f"<blockquote><b><i>🎯Target Batch : {b_name}</i></b></blockquote>
+
+🔄 Your Task is under processing, please check your Set Channel📱. Once your task is complete, I will inform you 📩"
                 )
                 await bot.send_message(
                     chat_id=m.chat.id,
                     text=
-                    f"<blockquote><b><i>🎯Target Batch : {b_name}</i></b></blockquote>\n\n🔄 Your Task is under processing, please check your Set Channel📱. Once your task is complete, I will inform you 📩"
+                    f"<blockquote><b><i>🎯Target Batch : {b_name}</i></b></blockquote>
+
+🔄 Your Task is under processing, please check your Set Channel📱. Once your task is complete, I will inform you 📩"
                 )
                 await bot.pin_chat_message(channel_id, batch_message.id)
                 message_id = batch_message.id + 1
@@ -777,11 +852,16 @@ async def txt_handler(bot: Client, m: Message):
                 await bot.send_message(
                     chat_id=m.chat.id,
                     text=
-                    f"<blockquote><b><i>🎯Target Batch : {b_name}</i></b></blockquote>\n\n🔄 Your Task is under processing, please check your Set Channel📱. Once your task is complete, I will inform you 📩"
+                    f"<blockquote><b><i>🎯Target Batch : {b_name}</i></b></blockquote>
+
+🔄 Your Task is under processing, please check your Set Channel📱. Once your task is complete, I will inform you 📩"
                 )
     except Exception as e:
         await m.reply_text(
-            f"**Fail Reason »**\n<blockquote><i>{e}</i></blockquote>\n\n✦𝐁𝐨𝐭 𝐌𝐚𝐝𝐞 𝐁𝐲 ✦ {CREDIT}🌟`"
+            f"**Fail Reason »**
+<blockquote><i>{e}</i></blockquote>
+
+✦𝐁𝐨𝐭 𝐌𝐚𝐝𝐞 𝐁𝐲 ✦ {CREDIT}🌟`"
         )
 
     failed_count = 0
@@ -1060,21 +1140,54 @@ async def txt_handler(bot: Client, m: Message):
                 cmd = f'yt-dlp -f "{ytf}" "{url}" -o "{name}.mp4"'
 
             try:
-                cc = (f"<b>🏷️ Iɴᴅᴇx ID  :</b> {str(count).zfill(3)}\n\n"
-                      f"<b>🎞️  Tɪᴛʟᴇ :</b> {name1} \n\n"
+                cc = (f"<b>🏷️ Iɴᴅᴇx ID  :</b> {str(count).zfill(3)}
+
+"
+                      f"<b>🎞️  Tɪᴛʟᴇ :</b> {name1} 
+
+"
                       f"<blockquote>📚  𝗕ᴀᴛᴄʜ : {b_name}</blockquote>"
-                      f"\n\n<b>🎓  Extracted by ➤ {CR}</b>")
-                cc1 = (f"<b>🏷️ Iɴᴅᴇx ID :</b> {str(count).zfill(3)}\n\n"
-                       f"<b>📑  Tɪᴛʟᴇ :</b> {name1} \n\n"
+                      f"
+
+<b>🎓  Extracted by ➤ {CR}</b>")
+                cc1 = (f"<b>🏷️ Iɴᴅᴇx ID :</b> {str(count).zfill(3)}
+
+"
+                       f"<b>📑  Tɪᴛʟᴇ :</b> {name1} 
+
+"
                        f"<blockquote>📚  𝗕ᴀᴛᴄʜ : {b_name}</blockquote>"
-                       f"\n\n<b>🎓  Extracted by ➤ {CR}</b>")
-                cczip = f'[📁]Zip Id : {str(count).zfill(3)}\n**Zip Title :** `{name1} .zip`\n<blockquote><b>Batch Name :</b> {b_name}</blockquote>\n\n**Extracted by➤**{CR}\n'
-                ccimg = (f"<b>🏷️ Iɴᴅᴇx ID <b>: {str(count).zfill(3)} \n\n"
-                         f"<b>🖼️  Tɪᴛʟᴇ</b> : {name1} \n\n"
+                       f"
+
+<b>🎓  Extracted by ➤ {CR}</b>")
+                cczip = f'[📁]Zip Id : {str(count).zfill(3)}
+**Zip Title :** `{name1} .zip`
+<blockquote><b>Batch Name :</b> {b_name}</blockquote>
+
+**Extracted by➤**{CR}
+'
+                ccimg = (f"<b>🏷️ Iɴᴅᴇx ID <b>: {str(count).zfill(3)} 
+
+"
+                         f"<b>🖼️  Tɪᴛʟᴇ</b> : {name1} 
+
+"
                          f"<blockquote>📚  𝗕ᴀᴛᴄʜ : {b_name}</blockquote>"
-                         f"\n\n<b>🎓  Uᴘʟᴏᴀᴅ Bʏ : {CR}</b>")
-                ccm = f'[🎵]Audio Id : {str(count).zfill(3)}\n**Audio Title :** `{name1} .mp3`\n<blockquote><b>Batch Name :</b> {b_name}</blockquote>\n\n**Extracted by➤**{CR}\n'
-                cchtml = f'[🌐]Html Id : {str(count).zfill(3)}\n**Html Title :** `{name1} .html`\n<blockquote><b>Batch Name :</b> {b_name}</blockquote>\n\n**Extracted by➤**{CR}\n'
+                         f"
+
+<b>🎓  Uᴘʟᴏᴀᴅ Bʏ : {CR}</b>")
+                ccm = f'[🎵]Audio Id : {str(count).zfill(3)}
+**Audio Title :** `{name1} .mp3`
+<blockquote><b>Batch Name :</b> {b_name}</blockquote>
+
+**Extracted by➤**{CR}
+'
+                cchtml = f'[🌐]Html Id : {str(count).zfill(3)}
+**Html Title :** `{name1} .html`
+<blockquote><b>Batch Name :</b> {b_name}</blockquote>
+
+**Extracted by➤**{CR}
+'
 
                 if "drive" in url:
                     try:
@@ -1144,7 +1257,11 @@ async def txt_handler(bot: Client, m: Message):
                 
                         await bot.send_message(
                             channel_id,
-                            f"⚠️ PDF Download Failed\n\n{name1}\n\nReason: {str(e)}"
+                            f"⚠️ PDF Download Failed
+
+{name1}
+
+Reason: {str(e)}"
                         )
                 
                         failed_count += 1
@@ -1200,7 +1317,8 @@ async def txt_handler(bot: Client, m: Message):
                         continue
 
                 elif 'encrypted.m' in url:
-                    Show = f"<i><b>Video APPX Encrypted Downloading</b></i>\n<blockquote><b>{str(count).zfill(3)}) {name1}</b></blockquote>"
+                    Show = f"<i><b>Video APPX Encrypted Downloading</b></i>
+<blockquote><b>{str(count).zfill(3)}) {name1}</b></blockquote>"
                     prog = await bot.send_message(
                         channel_id, Show, disable_web_page_preview=True)
                     try:
@@ -1223,7 +1341,11 @@ async def txt_handler(bot: Client, m: Message):
                         else:
                             await bot.send_message(
                                 channel_id,
-                                f'⚠️**Downloading Failed**⚠️\n**Name** =>> `{str(count).zfill(3)} {name1}`\n**Url** =>> {link0}\n\n<blockquote><i><b>Failed Reason: {str(e)}</b></i></blockquote>',
+                                f'⚠️**Downloading Failed**⚠️
+**Name** =>> `{str(count).zfill(3)} {name1}`
+**Url** =>> {link0}
+
+<blockquote><i><b>Failed Reason: {str(e)}</b></i></blockquote>',
                                 disable_web_page_preview=True)
                             failed_count += 1
                             count += 1
@@ -1232,14 +1354,19 @@ async def txt_handler(bot: Client, m: Message):
                     except Exception as e:
                         await bot.send_message(
                             channel_id,
-                            f'⚠️**Downloading Failed**⚠️\n**Name** =>> `{str(count).zfill(3)} {name1}`\n**Url** =>> {link0}\n\n<blockquote><i><b>Failed Reason: {str(e)}</b></i></blockquote>',
+                            f'⚠️**Downloading Failed**⚠️
+**Name** =>> `{str(count).zfill(3)} {name1}`
+**Url** =>> {link0}
+
+<blockquote><i><b>Failed Reason: {str(e)}</b></i></blockquote>',
                             disable_web_page_preview=True)
                         count += 1
                         failed_count += 1
                         continue
 
                 elif 'drmcdni' in url or 'drm/wv' in url or 'drm/common' in url:
-                    Show = f"<i><b>📥 Fast Video Downloading</b></i>\n<blockquote><b>{str(count).zfill(3)}) {name1}</b></blockquote>"
+                    Show = f"<i><b>📥 Fast Video Downloading</b></i>
+<blockquote><b>{str(count).zfill(3)}) {name1}</b></blockquote>"
                     prog = await bot.send_message(
                         channel_id, Show, disable_web_page_preview=True)
                     res_file = await helper.decrypt_and_merge_video(
@@ -1260,7 +1387,8 @@ async def txt_handler(bot: Client, m: Message):
                     continue
 
                 else:
-                    Show = f"<i><b>📥 Fast Video Downloading</b></i>\n<blockquote><b>{str(count).zfill(3)}) {name1}</b></blockquote>"
+                    Show = f"<i><b>📥 Fast Video Downloading</b></i>
+<blockquote><b>{str(count).zfill(3)}) {name1}</b></blockquote>"
                     prog = await bot.send_message(
                         channel_id, Show, disable_web_page_preview=True)
                     res_file = await helper.download_video(url, cmd, name)
@@ -1281,7 +1409,11 @@ async def txt_handler(bot: Client, m: Message):
             except Exception as e:
                 await bot.send_message(
                     channel_id,
-                    f'⚠️**Downloading Failed**⚠️\n**Name** =>> `{str(count).zfill(3)} {name1}`\n**Url** =>> {link0}\n\n<blockquote><i><b>Failed Reason: {str(e)}</b></i></blockquote>',
+                    f'⚠️**Downloading Failed**⚠️
+**Name** =>> `{str(count).zfill(3)} {name1}`
+**Url** =>> {link0}
+
+<blockquote><i><b>Failed Reason: {str(e)}</b></i></blockquote>',
                     disable_web_page_preview=True)
                 count += 1
                 failed_count += 1
@@ -1295,25 +1427,48 @@ async def txt_handler(bot: Client, m: Message):
     video_count = v2_count + mpd_count + m3u8_count + yt_count + drm_count + zip_count + other_count
     if raw_text7 == "/d":
         await bot.send_message(
-            channel_id, ("<b>📬 ᴘʀᴏᴄᴇꜱꜱ ᴄᴏᴍᴘʟᴇᴛᴇᴅ</b>\n\n"
+            channel_id, ("<b>📬 ᴘʀᴏᴄᴇꜱꜱ ᴄᴏᴍᴘʟᴇᴛᴇᴅ</b>
+
+"
                          "<blockquote><b>📚 ʙᴀᴛᴄʜ ɴᴀᴍᴇ :</b> "
-                         f"{b_name}</blockquote>\n"
-                         "╭────────────────\n"
-                         f"├ 🖇️ ᴛᴏᴛᴀʟ ᴜʀʟꜱ : <code>{len(links)}</code>\n"
-                         f"├ ✅ ꜱᴜᴄᴄᴇꜱꜱꜰᴜʟ : <code>{success_count}</code>\n"
-                         f"├ ❌ ꜰᴀɪʟᴇᴅ : <code>{failed_count}</code>\n"
-                         "╰────────────────\n\n"
-                         "╭──────── 📦 ᴄᴀᴛᴇɢᴏʀʏ ────────\n"
-                         f"├ 🎞️ ᴠɪᴅᴇᴏꜱ : <code>{video_count}</code>\n"
-                         f"├ 📑 ᴘᴅꜰꜱ : <code>{pdf_count}</code>\n"
-                         f"├ 🖼️ ɪᴍᴀɢᴇꜱ : <code>{img_count}</code>\n"
-                         "╰────────────────────────────\n\n"
+                         f"{b_name}</blockquote>
+"
+                         "╭────────────────
+"
+                         f"├ 🖇️ ᴛᴏᴛᴀʟ ᴜʀʟꜱ : <code>{len(links)}</code>
+"
+                         f"├ ✅ ꜱᴜᴄᴄᴇꜱꜱꜰᴜʟ : <code>{success_count}</code>
+"
+                         f"├ ❌ ꜰᴀɪʟᴇᴅ : <code>{failed_count}</code>
+"
+                         "╰────────────────
+
+"
+                         "╭──────── 📦 ᴄᴀᴛᴇɢᴏʀʏ ────────
+"
+                         f"├ 🎞️ ᴠɪᴅᴇᴏꜱ : <code>{video_count}</code>
+"
+                         f"├ 📑 ᴘᴅꜰꜱ : <code>{pdf_count}</code>
+"
+                         f"├ 🖼️ ɪᴍᴀɢᴇꜱ : <code>{img_count}</code>
+"
+                         "╰────────────────────────────
+
+"
                          "<i>ᴇxᴛʀᴀᴄᴛᴇᴅ ʙʏ Rixie 🤖</i>"))
 
     else:
         await bot.send_message(
             channel_id,
-            f"<b>-┈━═.•°✅ Completed ✅°•.═━┈-</b>\n<blockquote><b>🎯Batch Name : {b_name}</b></blockquote>\n<blockquote>🔗 Total URLs: {len(links)} \n┃   ┠🔴 Total Failed URLs: {failed_count}\n┃   ┠🟢 Total Successful URLs: {success_count}\n┃   ┃   ┠🎥 Total Video URLs: {video_count}\n┃   ┃   ┠📄 Total PDF URLs: {pdf_count}\n┃   ┃   ┠📸 Total IMAGE URLs: {img_count}</blockquote>\n"
+            f"<b>-┈━═.•°✅ Completed ✅°•.═━┈-</b>
+<blockquote><b>🎯Batch Name : {b_name}</b></blockquote>
+<blockquote>🔗 Total URLs: {len(links)} 
+┃   ┠🔴 Total Failed URLs: {failed_count}
+┃   ┠🟢 Total Successful URLs: {success_count}
+┃   ┃   ┠🎥 Total Video URLs: {video_count}
+┃   ┃   ┠📄 Total PDF URLs: {pdf_count}
+┃   ┃   ┠📸 Total IMAGE URLs: {img_count}</blockquote>
+"
         )
         await bot.send_message(
             m.chat.id,
@@ -1343,12 +1498,20 @@ async def text_handler(bot: Client, m: Message):
         return
 
     editable = await m.reply_text(
-        f"<pre><code>**🔹Processing your link...\n🔁Please wait...⏳**</code></pre>"
+        f"<pre><code>**🔹Processing your link...
+🔁Please wait...⏳**</code></pre>"
     )
     await m.delete()
 
     await editable.edit(
-        f"╭━━━━❰ᴇɴᴛᴇʀ ʀᴇꜱᴏʟᴜᴛɪᴏɴ❱━━➣ \n┣━━⪼ send `144`\n┣━━⪼ send `240`\n┣━━⪼ send `360`\n┣━━⪼ send `480`\n┣━━⪼ send `720`\n┣━━⪼ send `1080`\n╰━━⌈⚡[`{CREDIT}`]⚡⌋━━➣ "
+        f"╭━━━━❰ᴇɴᴛᴇʀ ʀᴇꜱᴏʟᴜᴛɪᴏɴ❱━━➣ 
+┣━━⪼ send `144`
+┣━━⪼ send `240`
+┣━━⪼ send `360`
+┣━━⪼ send `480`
+┣━━⪼ send `720`
+┣━━⪼ send `1080`
+╰━━⌈⚡[`{CREDIT}`]⚡⌋━━➣ "
     )
     input2: Message = await bot.listen(editable.chat.id,
                                        filters=filters.text
@@ -1380,16 +1543,27 @@ async def text_handler(bot: Client, m: Message):
 @bot.on_callback_query(filters.regex("features"))
 async def features_callback(client, callback_query: CallbackQuery):
     await callback_query.answer()
-    features_text = ("**🔥 Bot Features 🔥**\n\n"
-                     "• 📥 Download DRM protected videos\n"
-                     "• 🎬 Support for multiple video formats\n"
-                     "• 📱 Works with YouTube and other platforms\n"
-                     "• 📑 PDF download support\n"
-                     "• 🖼️ Image download support\n"
-                     "• 🎵 Audio download support\n"
-                     "• 📝 Text to file conversion\n"
-                     "• ⚙️ Customizable quality settings\n"
-                     "• 🎨 Custom watermark support\n")
+    features_text = ("**🔥 Bot Features 🔥**
+
+"
+                     "• 📥 Download DRM protected videos
+"
+                     "• 🎬 Support for multiple video formats
+"
+                     "• 📱 Works with YouTube and other platforms
+"
+                     "• 📑 PDF download support
+"
+                     "• 🖼️ Image download support
+"
+                     "• 🎵 Audio download support
+"
+                     "• 📝 Text to file conversion
+"
+                     "• ⚙️ Customizable quality settings
+"
+                     "• 🎨 Custom watermark support
+")
     await callback_query.message.edit_text(
         features_text,
         reply_markup=InlineKeyboardMarkup(
@@ -1399,17 +1573,31 @@ async def features_callback(client, callback_query: CallbackQuery):
 @bot.on_callback_query(filters.regex("details"))
 async def details_callback(client, callback_query: CallbackQuery):
     await callback_query.answer()
-    details_text = ("**📋 Bot Details 📋**\n\n"
-                    "• 🤖 Bot Name: DRM Wizard 🦋\n"
-                    "• 👨‍💻 Developer: Ghost Rix\n"
-                    "• 📱 Contact: @RixieHQ\n"
-                    "• 🔄 Version: 1.0\n"
-                    "• 📝 Language: Python\n"
-                    "• 🛠️ Framework: Pyrogram\n\n"
-                    "**🔐 Privacy & Security**\n\n"
-                    "• 🔒 Your data is secure with us\n"
-                    "• 🚫 We don't store your personal information\n"
-                    "• 🔐 End-to-end encryption for all communications\n")
+    details_text = ("**📋 Bot Details 📋**
+
+"
+                    "• 🤖 Bot Name: DRM Wizard 🦋
+"
+                    "• 👨‍💻 Developer: Ghost Rix
+"
+                    "• 📱 Contact: @RixieHQ
+"
+                    "• 🔄 Version: 1.0
+"
+                    "• 📝 Language: Python
+"
+                    "• 🛠️ Framework: Pyrogram
+
+"
+                    "**🔐 Privacy & Security**
+
+"
+                    "• 🔒 Your data is secure with us
+"
+                    "• 🚫 We don't store your personal information
+"
+                    "• 🔐 End-to-end encryption for all communications
+")
     await callback_query.message.edit_text(
         details_text,
         reply_markup=InlineKeyboardMarkup(
@@ -1424,18 +1612,25 @@ async def back_to_start_callback(client, callback_query: CallbackQuery):
     is_authorized = db.is_user_authorized(user_id, client.me.username)
     is_admin = db.is_admin(user_id)
 
-    commands_list = ("**>  /drm - ꜱᴛᴀʀᴛ ᴜᴘʟᴏᴀᴅɪɴɢ ᴄᴘ/ᴄᴡ ᴄᴏᴜʀꜱᴇꜱ**\n"
-                     "**>  /plan - ᴠɪᴇᴡ ʏᴏᴜʀ ꜱᴜʙꜱᴄʀɪᴘᴛɪᴏɴ ᴅᴇᴛᴀɪʟꜱ**\n")
+    commands_list = ("**>  /drm - ꜱᴛᴀʀᴛ ᴜᴘʟᴏᴀᴅɪɴɢ ᴄᴘ/ᴄᴡ ᴄᴏᴜʀꜱᴇꜱ**
+"
+                     "**>  /plan - ᴠɪᴇᴡ ʏᴏᴜʀ ꜱᴜʙꜱᴄʀɪᴘᴛɪᴏɴ ᴅᴇᴛᴀɪʟꜱ**
+")
 
     if is_admin:
-        commands_list += ("\n**👑 Admin Commands**\n"
-                          "• /users - List all users\n")
+        commands_list += ("
+**👑 Admin Commands**
+"
+                          "• /users - List all users
+")
 
     await callback_query.message.edit_media(
         media=InputMediaPhoto(
             media=photologo,
             caption=
-            f"**Mʏ ᴄᴏᴍᴍᴀɴᴅꜱ ғᴏʀ ʏᴏᴜ [{callback_query.from_user.first_name} ](tg://settings)**\n\n{commands_list}"
+            f"**Mʏ ᴄᴏᴍᴍᴀɴᴅꜱ ғᴏʀ ʏᴏᴜ [{callback_query.from_user.first_name} ](tg://settings)**
+
+{commands_list}"
         ),
         reply_markup=InlineKeyboardMarkup(
             [[
@@ -1663,12 +1858,18 @@ class LiveRecorder:
             try:
                 await self.config.client.send_message(
                     self.config.upload_chat,
-                    f"🔴 <b>LIVE STARTED</b>\\n"
-                    f"🆔 Process: <code>{self.config.pid:03d}</code>\\n"
-                    f"🎬 <b>{title}</b>\\n"
-                    f"📊 Quality: <code>480p</code>\\n"
-                    f"📚 Batch: <b>{self.config.batch_name}</b>\\n"
-                    f"⬇️ <i>Recording started...</i>\\n"
+                    f"🔴 <b>LIVE STARTED</b>\
+"
+                    f"🆔 Process: <code>{self.config.pid:03d}</code>\
+"
+                    f"🎬 <b>{title}</b>\
+"
+                    f"📊 Quality: <code>480p</code>\
+"
+                    f"📚 Batch: <b>{self.config.batch_name}</b>\
+"
+                    f"⬇️ <i>Recording started...</i>\
+"
                     f"⏰ <code>{datetime.datetime.now().strftime('%H:%M:%S')}</code>",
                     message_thread_id=self.config.thread_id
                 )
@@ -1807,14 +2008,23 @@ class LiveRecorder:
             
             # File name mein Title rahega (original title from API)
             caption = (
-                f"🎥 <b>Live Recording</b>\\n"
-                f"🆔 ID: <code>{self.config.pid:03d}</code>\\n"
-                f"📛 <b>{self.last_title or 'Unknown'}</b> [480p].mp4\\n"
-                f"📚 Batch: <b>{self.config.batch_name}</b>\\n"
-                f"⏱ Duration: <code>{duration_str}</code>\\n"
-                f"📦 Size: <code>{os.path.getsize(fixed_file) / (1024*1024):.1f} MB</code>\\n"
-                f"<blockquote>📚 {self.config.batch_name}</blockquote>\\n\\n"
-                f"<b>🎓 Extracted by ➤ 𝙂𝙃𝙊𝙎𝙏•𝙍𝙄𝙓</b>\\n"
+                f"🎥 <b>Live Recording</b>\
+"
+                f"🆔 ID: <code>{self.config.pid:03d}</code>\
+"
+                f"📛 <b>{self.last_title or 'Unknown'}</b> [480p].mp4\
+"
+                f"📚 Batch: <b>{self.config.batch_name}</b>\
+"
+                f"⏱ Duration: <code>{duration_str}</code>\
+"
+                f"📦 Size: <code>{os.path.getsize(fixed_file) / (1024*1024):.1f} MB</code>\
+"
+                f"<blockquote>📚 {self.config.batch_name}</blockquote>\
+\
+"
+                f"<b>🎓 Extracted by ➤ 𝙂𝙃𝙊𝙎𝙏•𝙍𝙄𝙓</b>\
+"
                 f"⏰ <code>{end_time.strftime('%H:%M:%S')}</code>"
             )
             
@@ -1865,10 +2075,14 @@ class LiveRecorder:
         try:
             await self.config.client.send_message(
                 self.config.owner_chat,
-                f"⚠️ <b>Process {self.config.pid:03d} Error</b>\\n"
-                f"<blockquote>{error_msg}</blockquote>\\n"
-                f"🎬 Title: {self.last_title or 'N/A'}\\n"
-                f"📚 Batch: {self.config.batch_name}\\n"
+                f"⚠️ <b>Process {self.config.pid:03d} Error</b>\
+"
+                f"<blockquote>{error_msg}</blockquote>\
+"
+                f"🎬 Title: {self.last_title or 'N/A'}\
+"
+                f"📚 Batch: {self.config.batch_name}\
+"
                 f"⏰ <code>{datetime.datetime.now().strftime('%H:%M:%S')}</code>"
             )
         except Exception as e:
@@ -1889,11 +2103,16 @@ class LiveRecorder:
             
             await self.config.client.send_message(
                 self.config.owner_chat,
-                f"✅ <b>Live Monitor Started</b>\\n"
-                f"🆔 Process: <code>{self.config.pid:03d}</code>\\n"
-                f"📚 Course: <code>{self.config.course_id}</code>\\n"
-                f"📦 Batch: <b>{self.config.batch_name}</b>\\n"
-                f"📤 Upload to: <code>{self.config.upload_chat}</code>\\n"
+                f"✅ <b>Live Monitor Started</b>\
+"
+                f"🆔 Process: <code>{self.config.pid:03d}</code>\
+"
+                f"📚 Course: <code>{self.config.course_id}</code>\
+"
+                f"📦 Batch: <b>{self.config.batch_name}</b>\
+"
+                f"📤 Upload to: <code>{self.config.upload_chat}</code>\
+"
                 f"⏱ Check interval: <code>{CHECK_INTERVAL}s</code>"
             )
             
@@ -1990,9 +2209,12 @@ def setup_live(bot):
             await response.delete()
             
             await message.reply_text(
-                "📤 Send CHAT ID for upload\\n"
-                "• Send <code>/d</code> for current chat\\n"
-                "• Format: <code>-100123456789</code>\\n"
+                "📤 Send CHAT ID for upload\
+"
+                "• Send <code>/d</code> for current chat\
+"
+                "• Format: <code>-100123456789</code>\
+"
                 "• With topic: <code>-100123456789/123</code>"
             )
             response = await client.listen(message.chat.id)
@@ -2043,12 +2265,20 @@ def setup_live(bot):
             }
             
             await message.reply_text(
-                f"✅ <b>Live Monitor Started</b>\\n\\n"
-                f"🆔 Process ID: <code>{pid:03d}</code>\\n"
-                f"🌐 API: <code>{api_base[:30]}...</code>\\n"
-                f"📚 Course: <code>{course_id}</code>\\n"
-                f"📤 Upload: <code>{upload_chat}</code>\\n"
-                f"🎥 Quality: <code>480p (Fixed)</code>\\n\\n"
+                f"✅ <b>Live Monitor Started</b>\
+\
+"
+                f"🆔 Process ID: <code>{pid:03d}</code>\
+"
+                f"🌐 API: <code>{api_base[:30]}...</code>\
+"
+                f"📚 Course: <code>{course_id}</code>\
+"
+                f"📤 Upload: <code>{upload_chat}</code>\
+"
+                f"🎥 Quality: <code>480p (Fixed)</code>\
+\
+"
                 f"Use <code>/stoplive {pid}</code> to stop"
             )
             
@@ -2061,7 +2291,9 @@ def setup_live(bot):
         if not ACTIVE_LIVES:
             return await message.reply_text("❌ No active live processes")
         
-        text = "📊 <b>Active Live Processes</b>\\n\\n"
+        text = "📊 <b>Active Live Processes</b>\
+\
+"
         
         for pid, data in sorted(ACTIVE_LIVES.items()):
             config = data["config"]
@@ -2073,13 +2305,21 @@ def setup_live(bot):
             batch = config.batch_name or "Fetching..."
             
             text += (
-                f"🆔 <code>{pid:03d}</code> | {status}\\n"
-                f"├ 🎬 {current[:30]}...\\n"
-                f"├ 📦 {batch[:30]}...\\n"
-                f"├ 📚 {config.course_id}\\n"
-                f"├ 📤 {config.upload_chat}\\n"
-                f"├ 🎥 480p\\n"
-                f"└ ⏰ Started: {started}\\n\\n"
+                f"🆔 <code>{pid:03d}</code> | {status}\
+"
+                f"├ 🎬 {current[:30]}...\
+"
+                f"├ 📦 {batch[:30]}...\
+"
+                f"├ 📚 {config.course_id}\
+"
+                f"├ 📤 {config.upload_chat}\
+"
+                f"├ 🎥 480p\
+"
+                f"└ ⏰ Started: {started}\
+\
+"
             )
         
         text += f"Total: <code>{len(ACTIVE_LIVES)}</code> processes"
@@ -2152,9 +2392,13 @@ def setup_live(bot):
                 failed += 1
         
         await message.reply_text(
-            f"🛑 <b>All Processes Stopped</b>\\n\\n"
-            f"✅ Stopped: <code>{stopped}</code>\\n"
-            f"❌ Failed: <code>{failed}</code>\\n"
+            f"🛑 <b>All Processes Stopped</b>\
+\
+"
+            f"✅ Stopped: <code>{stopped}</code>\
+"
+            f"❌ Failed: <code>{failed}</code>\
+"
             f"📊 Total: <code>{count}</code>"
         )
     
@@ -2178,15 +2422,25 @@ def setup_live(bot):
             uptime_str = str(uptime).split('.')[0]
             
             text = (
-                f"📈 <b>Process {pid:03d} Stats</b>\n\n"
-                f"🎬 Current: <code>{recorder.last_title or 'N/A'}</code>\n"
-                f"📦 Batch: <b>{config.batch_name or 'Fetching...'}</b>\n"
-                f"🔴 Recording: <code>{'Yes' if recorder.current_live else 'No'}</code>\n"
-                f"📁 File: <code>{recorder.live_file or 'N/A'}</code>\n"
-                f"⏱ Uptime: <code>{uptime_str}</code>\n"
-                f"📚 Course: <code>{config.course_id}</code>\n"
-                f"🎥 Quality: <code>480p</code>\n"
-                f"📤 Upload: <code>{config.upload_chat}</code>\n"
+                f"📈 <b>Process {pid:03d} Stats</b>
+
+"
+                f"🎬 Current: <code>{recorder.last_title or 'N/A'}</code>
+"
+                f"📦 Batch: <b>{config.batch_name or 'Fetching...'}</b>
+"
+                f"🔴 Recording: <code>{'Yes' if recorder.current_live else 'No'}</code>
+"
+                f"📁 File: <code>{recorder.live_file or 'N/A'}</code>
+"
+                f"⏱ Uptime: <code>{uptime_str}</code>
+"
+                f"📚 Course: <code>{config.course_id}</code>
+"
+                f"🎥 Quality: <code>480p</code>
+"
+                f"📤 Upload: <code>{config.upload_chat}</code>
+"
                 f"👤 Owner: <code>{config.owner_chat}</code>"
             )
             
