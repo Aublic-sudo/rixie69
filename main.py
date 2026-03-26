@@ -33,6 +33,10 @@ from pytube import YouTube
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import unpad
 from aiohttp import ClientSession
+from typing import Dict, Any, Optional
+from dataclasses import dataclass
+import tempfile
+import signal
 # ⚙️ Pyrogram
 from pyrogram import Client, filters, idle
 from pyrogram.handlers import MessageHandler
@@ -1647,7 +1651,7 @@ class LiveRecorder:
             self.live_missing_count = 0
             
             # Sanitize filename - use Title (batch name nahi, wo caption mein ayega)
-            safe_title = re.sub(r'[\\/*?:"<>|]', "", title or "LIVE")[:50].strip()
+            safe_title = re.sub(r'[\\/*?:"<>|]', "", title or "LIVE")
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             self.live_file = os.path.join(
                 self._temp_dir, 
