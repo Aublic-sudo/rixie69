@@ -1450,10 +1450,11 @@ ACTIVE_LIVES = {}
 PROCESS_COUNTER = 0
 
 
-def fetch_live(api_base, course_id, token):
+ENDPOINT_CACHE = {}
+
+def fetch_live(api_base, course_id):
 
     headers = {
-        "Authorization": token,
         "Client-Service": "Appx",
         "Auth-Key": "appxapi",
         "User-ID": "-2",
@@ -1465,12 +1466,36 @@ def fetch_live(api_base, course_id, token):
         f"/get/course_contents_by_live_status?course_id={course_id}&start=-1&live_status=1,2"
     ]
 
+    # 🔥 STEP 1: check cached endpoint first
+    cached_ep = ENDPOINT_CACHE.get(course_id)
+
+    if cached_ep:
+        try:
+            r = requests.get(api_base + cached_ep, headers=headers, timeout=10)
+
+            if r.status_code == 200:
+                j = r.json()
+
+                if j.get("data") and j["data"].get("live"):
+                    item = j["data"]["live"][0]
+
+                    title = item.get("Title", "LIVE")
+                    sid = item.get("recording_schedule")
+
+                    if sid:
+                        url = f"https://liveclasses.cloud-front.in/live/{sid}_480p.m3u8"
+                        return title, sid, url
+
+        except:
+            pass  # fallback to full scan
+
+    # 🔄 STEP 2: try all endpoints
     for ep in endpoints:
         try:
             r = requests.get(api_base + ep, headers=headers, timeout=10)
 
-            if r.status_code in [401,403]:
-                return "AUTH_ERROR", None, None
+            if r.status_code == 404:
+                continue
 
             if r.status_code != 200:
                 continue
@@ -1480,25 +1505,28 @@ def fetch_live(api_base, course_id, token):
             if j.get("data") and j["data"].get("live"):
                 item = j["data"]["live"][0]
 
-                title = item.get("Title","LIVE")
+                title = item.get("Title", "LIVE")
                 sid = item.get("recording_schedule")
 
                 if not sid:
-                    return None,None,None
+                    return None, None, None
+
+                # ✅ cache working endpoint
+                ENDPOINT_CACHE[course_id] = ep
 
                 url = f"https://liveclasses.cloud-front.in/live/{sid}_480p.m3u8"
 
-                return title,sid,url
+                return title, sid, url
 
         except Exception as e:
             print("LIVE FETCH ERROR:", e)
 
-    return None,None,None
+    return None, None, None
 
 
 # ================= MULTI WATCHER LOOP =================
 
-async def multi_watcher(pid, api, course_id, token, upload_chat, thread_id, client, owner_chat):
+async def multi_watcher(pid, api, course_id, batch_name, upload_chat, thread_id, client, owner_chat):
 
     current_live = None
     live_file = None
@@ -1509,11 +1537,10 @@ async def multi_watcher(pid, api, course_id, token, upload_chat, thread_id, clie
     try:
         while True:
 
-            title, sid, url = await asyncio.to_thread(fetch_live, api, course_id, token)
+            title, sid, url = await asyncio.to_thread(fetch_live, api, course_id)
 
-            if title == "AUTH_ERROR":
-                await client.send_message(owner_chat, f"❌ PROCESS {pid} TOKEN EXPIRED")
-                break
+            
+                
 
             # 🔴 LIVE START
             if sid and sid != current_live:
@@ -1572,7 +1599,7 @@ async def multi_watcher(pid, api, course_id, token, upload_chat, thread_id, clie
                         caption = (
                             f"🎥 <b>Vid Id :</b> {str(pid).zfill(3)}\n"
                             f"<b>Video Title :</b> {last_title} [480p].mp4\n\n"
-                            f"<blockquote>📚 Batch Name : {last_title}</blockquote>\n\n"
+                            f"<blockquote>📚 Batch Name : {batch_name}</blockquote>\n\n"
                             f"<b>Extracted by ➤ 𝙂𝙃𝙊𝙎𝙏•𝙍𝙄𝙓</b>"
                         )
             
@@ -1620,7 +1647,7 @@ async def multi_watcher(pid, api, course_id, token, upload_chat, thread_id, clie
                     live_file = None
                     live_missing_count = 0
 
-            await asyncio.sleep(20)
+            await asyncio.sleep(random.randint(25, 30))
 
     finally:
         ACTIVE_LIVES.pop(pid, None)
@@ -1641,8 +1668,11 @@ def setup_live(bot):
         await m.reply_text("📚 Send COURSE ID")
         course_id = (await client.listen(m.chat.id)).text.strip()
 
-        await m.reply_text("🔐 Send AUTH TOKEN")
-        token = (await client.listen(m.chat.id)).text.strip()
+        await m.reply_text("📚 Send Batch Name")
+        batch_name = (await client.listen(m.chat.id)).text.strip()
+
+        
+        
 
         await m.reply_text(
           "📤 Send the CHAT ID where the video should be uploaded.\n\nSend /d to use the current chat."
@@ -1671,8 +1701,8 @@ def setup_live(bot):
             multi_watcher(
                 pid,
                 api,
-                course_id,
-                token,
+                course_id, 
+                batch_name,
                 upload_chat,
                 thread_id,
                 client,
@@ -1743,7 +1773,7 @@ def setup_live(bot):
 
     # ================= STOP ALL PROCESS =================
 
-    @bot.on_message(filters.command("killalllive") & auth_filter)
+    @bot.on_message(filters.command("killall") & auth_filter)
     async def stop_all_live(client, m: Message):
 
         if not ACTIVE_LIVES:
