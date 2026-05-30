@@ -1655,6 +1655,254 @@ async def multi_watcher(pid, api, course_id, batch_name, upload_chat, thread_id,
 
 # ================= ADD LIVE COMMAND =================
 
+ENDPOINT_CACHE = {}
+
+
+def fetch_live(api_base, course_id):
+
+    headers = {
+        "Client-Service": "Appx",
+        "Auth-Key": "appxapi",
+        "User-ID": "-2",
+        "User-Agent": "okhttp/4.9.1"
+    }
+
+    endpoints = [
+        f"/get/live_upcoming_course_classv2?start=-1&courseid={course_id}",
+        f"/get/course_contents_by_live_status?course_id={course_id}&start=-1&live_status=1,2"
+    ]
+
+    cached_ep = ENDPOINT_CACHE.get(course_id)
+
+    if cached_ep:
+        try:
+            r = requests.get(api_base + cached_ep, headers=headers, timeout=10)
+            if r.status_code == 200:
+                j = r.json()
+                if j.get("data") and j["data"].get("live"):
+                    item = j["data"]["live"][0]
+                    title = item.get("Title", "LIVE")
+                    sid = item.get("recording_schedule")
+                    if sid:
+                        url = f"https://liveclasses.cloud-front.in/live/{sid}_480p.m3u8"
+                        return title, sid, url
+        except:
+            pass
+
+    for ep in endpoints:
+        try:
+            r = requests.get(api_base + ep, headers=headers, timeout=10)
+            if r.status_code == 404:
+                continue
+            if r.status_code != 200:
+                continue
+
+            j = r.json()
+            if j.get("data") and j["data"].get("live"):
+                item = j["data"]["live"][0]
+                title = item.get("Title", "LIVE")
+                sid = item.get("recording_schedule")
+                if not sid:
+                    return None, None, None
+
+                ENDPOINT_CACHE[course_id] = ep
+                url = f"https://liveclasses.cloud-front.in/live/{sid}_480p.m3u8"
+                return title, sid, url
+
+        except Exception as e:
+            print("LIVE FETCH ERROR:", e)
+
+    return None, None, None
+
+
+# ================= MULTI WATCHER LOOP =================
+
+async def multi_watcher(pid, api, course_id, batch_name, upload_chat, thread_id, client, owner_chat):
+
+    current_live = None
+    live_file = None
+    proc = None
+    live_missing_count = 0
+    last_title = None
+
+    try:
+        while True:
+
+            try:
+                title, sid, url = await asyncio.to_thread(fetch_live, api, course_id)
+            except Exception as e:
+                print(f"[PID {pid}] fetch_live error: {e}")
+                await asyncio.sleep(30)
+                continue
+
+            # ✅ FIX 1: LIVE CHAL RAHA HAI — counter reset karo
+            if sid and sid == current_live:
+                live_missing_count = 0
+
+            # 🔴 LIVE START — naya sid aaya
+            elif sid and sid != current_live:
+
+                live_missing_count = 0
+                current_live = sid
+                last_title = title
+
+                safe_title = re.sub(r'[\\/*?:"<>|]', "", title or "LIVE").strip()
+                live_file = os.path.abspath(f"{safe_title}_{pid}.mp4")
+
+                await client.send_message(
+                    upload_chat,
+                    f"🔴 <b>LIVE STARTED</b>\n"
+                    f"🆔 Process : {str(pid).zfill(3)}\n"
+                    f"🎬 {title}\n"
+                    f"⬇️ <i>Recording & Downloading Started...</i>",
+                    message_thread_id=thread_id
+                )
+
+                cmd = [
+                    "ffmpeg",
+                    "-y",
+                    "-fflags", "+genpts",
+                    "-i", url,
+                    "-c", "copy",
+                    "-bsf:a", "aac_adtstoasc",
+                    "-movflags", "+faststart",
+                    "-map", "0",
+                    live_file
+                ]
+
+                proc = await asyncio.create_subprocess_exec(*cmd)
+
+                if pid in ACTIVE_LIVES:
+                    ACTIVE_LIVES[pid]["proc"] = proc
+
+            # 🟢 LIVE END — sid nahi aaya
+            if not sid and current_live:
+
+                live_missing_count += 1
+
+                if live_missing_count >= 3:
+
+                    # ✅ FIX 2: proc properly terminate + wait
+                    if proc:
+                        try:
+                            proc.terminate()
+                            await asyncio.wait_for(proc.wait(), timeout=15)
+                        except asyncio.TimeoutError:
+                            proc.kill()
+                            await proc.wait()
+                        except Exception as e:
+                            print(f"[PID {pid}] proc terminate error: {e}")
+                        proc = None
+
+                    # ✅ FIX 3: file flush hone do
+                    await asyncio.sleep(3)
+
+                    if live_file and os.path.exists(live_file):
+
+                        caption = (
+                            f"🎥 <b>Vid Id :</b> {str(pid).zfill(3)}\n"
+                            f"<b>Video Title :</b> {last_title} [480p].mp4\n\n"
+                            f"<blockquote>📚 Batch Name : {batch_name}</blockquote>\n\n"
+                            f"<b>Extracted by ➤ 𝙂𝙃𝙊𝙎𝙏•𝙍𝙄𝙓</b>"
+                        )
+
+                        try:
+                            # Fix video metadata
+                            fixed_file = os.path.abspath(f"fixed_{pid}.mp4")
+
+                            fix_result = subprocess.run(
+                                f'ffmpeg -y -i "{live_file}" -c copy -map 0 -movflags +faststart "{fixed_file}"',
+                                shell=True,
+                                capture_output=True
+                            )
+
+                            if fix_result.returncode == 0 and os.path.exists(fixed_file):
+                                os.remove(live_file)
+                                live_file = fixed_file
+                            else:
+                                # ffmpeg fix fail hua, original file use karo
+                                print(f"[PID {pid}] ffmpeg fix failed, using original")
+
+                            # Duration nikalo
+                            try:
+                                duration = int(float(subprocess.check_output(
+                                    f'ffprobe -v error -show_entries format=duration -of csv=p=0 "{live_file}"',
+                                    shell=True
+                                ).decode().strip()))
+                            except Exception:
+                                duration = 0
+
+                            # Thumbnail banao
+                            thumb = os.path.abspath(f"live_thumb_{pid}.jpg")
+                            subprocess.run(
+                                f'ffmpeg -i "{live_file}" -ss 00:00:05 -vframes 1 -y "{thumb}"',
+                                shell=True,
+                                capture_output=True
+                            )
+                            thumb_path = thumb if os.path.exists(thumb) else None
+
+                            await client.send_video(
+                                upload_chat,
+                                live_file,
+                                caption=caption,
+                                supports_streaming=True,
+                                thumb=thumb_path,
+                                duration=duration,
+                                message_thread_id=thread_id
+                            )
+
+                            if thumb_path and os.path.exists(thumb_path):
+                                os.remove(thumb_path)
+
+                            if os.path.exists(live_file):
+                                os.remove(live_file)
+
+                        except Exception as upload_err:
+                            # ✅ FIX 4: upload fail hone par owner ko batao
+                            print(f"[PID {pid}] Upload error: {upload_err}")
+                            await client.send_message(
+                                owner_chat,
+                                f"⚠️ <b>Process {pid} — Upload Failed</b>\n\n"
+                                f"🎬 Title: {last_title}\n"
+                                f"❌ Reason: <code>{str(upload_err)}</code>"
+                            )
+
+                    else:
+                        # ✅ FIX 5: file nahi mili — owner ko batao
+                        await client.send_message(
+                            owner_chat,
+                            f"⚠️ <b>Process {pid} — File Not Found</b>\n\n"
+                            f"🎬 Title: {last_title}\n"
+                            f"📁 Expected: <code>{live_file}</code>\n\n"
+                            f"Live tha lekin recording file nahi bani."
+                        )
+
+                    current_live = None
+                    live_file = None
+                    live_missing_count = 0
+
+            await asyncio.sleep(random.randint(25, 30))
+
+    except asyncio.CancelledError:
+        # Task cancel hone par proc bhi band karo
+        if proc:
+            try:
+                proc.kill()
+                await proc.wait()
+            except:
+                pass
+        if live_file and os.path.exists(live_file):
+            try:
+                os.remove(live_file)
+            except:
+                pass
+
+    finally:
+        ACTIVE_LIVES.pop(pid, None)
+
+
+# ================= ADD LIVE COMMAND =================
+
 def setup_live(bot):
 
     @bot.on_message(filters.command("addlive") & auth_filter)
@@ -1671,11 +1919,8 @@ def setup_live(bot):
         await m.reply_text("📚 Send Batch Name")
         batch_name = (await client.listen(m.chat.id)).text.strip()
 
-        
-        
-
         await m.reply_text(
-          "📤 Send the CHAT ID where the video should be uploaded.\n\nSend /d to use the current chat."
+            "📤 Send the CHAT ID where the video should be uploaded.\n\nSend /d to use the current chat."
         )
 
         chat_input = (await client.listen(m.chat.id)).text.strip()
@@ -1701,7 +1946,7 @@ def setup_live(bot):
             multi_watcher(
                 pid,
                 api,
-                course_id, 
+                course_id,
                 batch_name,
                 upload_chat,
                 thread_id,
@@ -1729,7 +1974,6 @@ def setup_live(bot):
         txt = "**🚀 ACTIVE LIVE PROCESSES**\n\n"
 
         for pid, data in ACTIVE_LIVES.items():
-
             txt += (
                 f"🆔 Process ID : {pid}\n"
                 f"🌐 API : {data['api']}\n"
@@ -1762,10 +2006,12 @@ def setup_live(bot):
             task.cancel()
 
             if proc:
-                proc.kill()
+                try:
+                    proc.kill()
+                except:
+                    pass
 
             ACTIVE_LIVES.pop(pid, None)
-
             await m.reply_text(f"🛑 LIVE PROCESS {pid} STOPPED")
 
         except Exception as e:
@@ -1785,11 +2031,9 @@ def setup_live(bot):
             try:
                 if data.get("proc"):
                     data["proc"].kill()
-
                 data["task"].cancel()
                 ACTIVE_LIVES.pop(pid, None)
                 stopped += 1
-
             except:
                 pass
 
