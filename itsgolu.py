@@ -1,3 +1,4 @@
+import cloudscraper
 import os
 import re
 import time
@@ -21,7 +22,10 @@ from Crypto.Cipher import AES
 from Crypto.Util.Padding import unpad
 from base64 import b64decode
 import math
-import m3u8
+try:
+    import m3u8
+except ImportError:
+    m3u8 = None
 from urllib.parse import urljoin
 from vars import *  # Add this import
 from db import Database
@@ -518,7 +522,8 @@ async def send_vid(bot: Client, m: Message, cc, filename, thumb, name, prog, cha
                     thumb=thumbnail,
                     duration=dur,
                     progress=progress_bar,
-                    progress_args=(reply, start_time)
+                    progress_args=(reply, start_time),
+                    reply_to_message_id=topic_thread_id
                 )
             except Exception:
                 sent_message = await bot.send_document(
@@ -526,7 +531,8 @@ async def send_vid(bot: Client, m: Message, cc, filename, thumb, name, prog, cha
                     document=filename,
                     caption=cc,
                     progress=progress_bar,
-                    progress_args=(reply, start_time)
+                    progress_args=(reply, start_time),
+                    reply_to_message_id=topic_thread_id
                 )
 
             # ✅ Cleanup
@@ -567,7 +573,8 @@ async def send_vid(bot: Client, m: Message, cc, filename, thumb, name, prog, cha
                             thumb=thumbnail,
                             duration=part_dur,
                             progress=progress_bar,
-                            progress_args=(upload_msg, time.time())
+                            progress_args=(upload_msg, time.time()),
+                            reply_to_message_id=topic_thread_id
                         )
                         if first_part_message is None:
                             first_part_message = msg_obj
@@ -578,7 +585,8 @@ async def send_vid(bot: Client, m: Message, cc, filename, thumb, name, prog, cha
                             caption=part_caption,
                             file_name=part_filename,
                             progress=progress_bar,
-                            progress_args=(upload_msg, time.time())
+                            progress_args=(upload_msg, time.time()),
+                            reply_to_message_id=topic_thread_id
                         )
                         if first_part_message is None:
                             first_part_message = msg_obj
@@ -613,3 +621,74 @@ async def send_vid(bot: Client, m: Message, cc, filename, thumb, name, prog, cha
 
     except Exception as err:
         raise Exception(f"send_vid failed: {err}")
+
+
+async def download_pdf_safe(url: str, file_name: str, referers: list = None) -> str:
+    """Robust PDF downloader: tries direct request first (crucial for signed Akamai URLs), then referers."""
+    if os.path.exists(file_name):
+        try:
+            os.remove(file_name)
+        except Exception:
+            pass
+
+    url = url.replace(" ", "%20")
+    scraper = cloudscraper.create_scraper()
+
+    # Step 1: Try clean direct request (no referer, standard browser UA)
+    headers_direct = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,application/pdf,*/*;q=0.8"
+    }
+    try:
+        resp = scraper.get(url, headers=headers_direct, stream=True, timeout=30)
+        if resp.status_code == 200:
+            with open(file_name, "wb") as f:
+                for chunk in resp.iter_content(1024 * 1024):
+                    if chunk:
+                        f.write(chunk)
+            if os.path.exists(file_name) and os.path.getsize(file_name) > 0:
+                return file_name
+    except Exception:
+        pass
+
+    # Step 2: Try referers
+    fallback_referers = referers or [
+        "https://nirmitacademy.akamai.net.in/",
+        "https://test.classx.co.in/",
+        "https://acadmy.akamai.net.in/",
+        "https://test.akamai.net.in/"
+    ]
+    for ref in fallback_referers:
+        try:
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Referer": ref
+            }
+            resp = scraper.get(url, headers=headers, stream=True, timeout=30)
+            if resp.status_code == 200:
+                with open(file_name, "wb") as f:
+                    for chunk in resp.iter_content(1024 * 1024):
+                        if chunk:
+                            f.write(chunk)
+                if os.path.exists(file_name) and os.path.getsize(file_name) > 0:
+                    return file_name
+        except Exception:
+            continue
+
+    # Step 3: Aiohttp fallback
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
+                if resp.status == 200:
+                    with open(file_name, "wb") as f:
+                        while True:
+                            chunk = await resp.content.read(1024 * 1024)
+                            if not chunk:
+                                break
+                            f.write(chunk)
+                    if os.path.exists(file_name) and os.path.getsize(file_name) > 0:
+                        return file_name
+    except Exception:
+        pass
+
+    raise Exception(f"Failed to download PDF from {url[:80]}...")

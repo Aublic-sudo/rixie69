@@ -1,3 +1,4 @@
+import asyncio
 import random
 import time
 from pyrogram.errors import FloodWait
@@ -119,7 +120,7 @@ async def progress_bar(current, total, reply, start):
     try:
         await reply.edit(msg)
     except FloodWait as e:
-        time.sleep(e.x)
+        await asyncio.sleep(e.x)
 
 
 

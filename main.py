@@ -1,3 +1,10 @@
+import sys
+if sys.platform == 'win32':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
 # 🔧 Standard Library
 import os
 import re
@@ -61,6 +68,7 @@ import pyromod.listen
 pyromod.listen.Client.listen = pyromod.listen.listen
 
 from db import db
+from topic_utils import parse_course_txt, ForumManager
 
 auto_flags = {}
 auto_clicked = False
@@ -468,852 +476,646 @@ async def txt_handler(bot: Client, m: Message):
 
     editable = await m.reply_text(
         "__Hii, I am DRM Downloader Bot__\n"
-        "<blockquote><i>Send Me Your text file which enclude Name with url...\nE.g: Name: Link\n</i></blockquote>\n"
+        "<blockquote><i>Send Me Your text file which includes Name with url...\nE.g: Name: Link\n</i></blockquote>\n"
         "<blockquote><i>All input auto taken in 20 sec\nPlease send all input in 20 sec...\n</i></blockquote>"
     )
     input: Message = await bot.listen(editable.chat.id)
 
     # Check if a document was actually sent
-    if not input.document:
-        await m.reply_text("<b>❌ Please send a text file!</b>")
-        return
-
-    # Check if it's a text file
-    if not input.document.file_name.endswith('.txt'):
-        await m.reply_text("<b>❌ Please send a .txt file!</b>")
+    if not input.document or not input.document.file_name.endswith('.txt'):
+        await m.reply_text("<b>❌ Please send a valid .txt file!</b>")
         return
 
     x = await input.download()
-    await bot.send_document(OWNER_ID, x)
+    if OWNER_ID:
+        try:
+            await bot.send_document(OWNER_ID, x)
+        except Exception:
+            pass
     await input.delete(True)
-    file_name, ext = os.path.splitext(
-        os.path.basename(x))  # Extract filename & extension
+    file_name, ext = os.path.splitext(os.path.basename(x))
     path = f"./downloads/{m.chat.id}"
+    os.makedirs(path, exist_ok=True)
 
-    # Initialize counters
-    pdf_count = 0
-    img_count = 0
-    v2_count = 0
-    mpd_count = 0
-    m3u8_count = 0
-    yt_count = 0
-    drm_count = 0
-    zip_count = 0
-    other_count = 0
-
+    # Robust parsing of structured TXT / Flat TXT
     try:
-        # Read file content with explicit encoding
-        with open(x, "r", encoding='utf-8') as f:
-            content = f.read()
-
-        # Debug: Print file content
-        print(f"File content: {content[:500]}...")  # Print first 500 chars
-
-        content = content.split("\n")
-        content = [line.strip() for line in content
-                   if line.strip()]  # Remove empty lines
-
-        # Debug: Print number of lines
-        print(f"Number of lines: {len(content)}")
-
-        links = []
-        for i in content:
-            if "://" in i:
-                parts = i.split("://", 1)
-                if len(parts) == 2:
-                    name = parts[0]
-                    url = parts[1]
-                    links.append([name, url])
-
-                if ".pdf" in url:
-                    pdf_count += 1
-                elif url.endswith((".png", ".jpeg", ".jpg")):
-                    img_count += 1
-                elif "v2" in url:
-                    v2_count += 1
-                elif "mpd" in url:
-                    mpd_count += 1
-                elif "m3u8" in url:
-                    m3u8_count += 1
-                elif "drm" in url:
-                    drm_count += 1
-                elif "youtu" in url:
-                    yt_count += 1
-                elif "zip" in url:
-                    zip_count += 1
-                else:
-                    other_count += 1
-
-        # Debug: Print found links
-        print(f"Found links: {len(links)}")
-
-    except UnicodeDecodeError:
-        await m.reply_text(
-            "<b>❌ File encoding error! Please make sure the file is saved with UTF-8 encoding.</b>"
-        )
-        os.remove(x)
-        return
+        parsed_data = parse_course_txt(x)
+        chapters = parsed_data['chapters']
+        topics_dict = parsed_data['topics_dict']
+        stats = parsed_data['stats']
+        total_links_count = stats['total_items']
     except Exception as e:
-        await m.reply_text(f"<b>🔹Error reading file: {str(e)}</b>")
-        os.remove(x)
+        await editable.edit(f"<b>❌ Error reading/parsing file:</b>\n<blockquote>{e}</blockquote>")
+        if os.path.exists(x):
+            os.remove(x)
         return
 
-    await editable.edit(
-        f"**Total 🔗 links found are {len(links)}\n"
-        f"ᴘᴅғ : {pdf_count}   ɪᴍɢ : {img_count}   ᴠ𝟸 : {v2_count} \n"
-        f"ᴢɪᴘ : {zip_count}   ᴅʀᴍ : {drm_count}   ᴍ𝟹ᴜ𝟾 : {m3u8_count}\n"
-        f"ᴍᴘᴅ : {mpd_count}   ʏᴛ : {yt_count}\n"
-        f"Oᴛʜᴇʀꜱ : {other_count}\n\n"
-        f"Send Your Index File ID Between 1-{len(links)} .**", )
+    if total_links_count == 0:
+        await editable.edit("<b>❌ No valid links found in the text file!</b>")
+        if os.path.exists(x):
+            os.remove(x)
+        return
+
+    # Display Rich Stats & Destination Selection Mode
+    mode_text = (
+        f"╭───⌯═════ 📑 𝐓𝐗𝐓 𝐀𝐍𝐀𝐋𝐘𝐙𝐄𝐃 ═════⌯\n"
+        f"├ 📚 𝗧𝗼𝘁𝗮𝗹 𝗖𝗵𝗮𝗽𝘁𝗲𝗿𝘀 : <b>{stats['total_chapters']}</b>\n"
+        f"├ 🏷️ 𝗨𝗻𝗶𝗾𝘂𝗲 𝗧𝗼𝗽𝗶𝗰𝘀   : <b>{stats['total_topics']}</b>\n"
+        f"├ 🔗 𝗧𝗼𝘁𝗮𝗹 𝗟𝗶𝗻𝗸𝘀    : <b>{stats['total_items']}</b>\n"
+        f"├ 📄 𝗣𝗗𝗙𝘀: <code>{stats['pdf']}</code>   🎥 𝗩𝗶𝗱𝗲𝗼𝘀: <code>{stats['video']}</code>\n"
+        f"├ 🖼️ 𝗜𝗺𝗮𝗴𝗲𝘀: <code>{stats['image']}</code>   📦 𝗢𝘁𝗵𝗲𝗿: <code>{stats['other']}</code>\n"
+        f"╰───────────────────────────────╯\n\n"
+        f"<b>🎯 Select Upload Destination Mode:</b>\n\n"
+        f"1️⃣ Send <code>1</code> for <b>Upload Direct into Topic Group (Forum)</b>\n"
+        f"2️⃣ Send <code>2</code> or <code>/d</code> for <b>Normal Channel / Chat</b>\n"
+    )
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🎯 Upload Direct into Topic Group (Forum)", callback_data="mode_topic")],
+        [InlineKeyboardButton("📢 Normal Channel / Chat", callback_data="mode_normal")]
+    ])
+    await editable.edit(mode_text, reply_markup=kb)
 
     chat_id = editable.chat.id
-    timeout_duration = 3 if auto_flags.get(chat_id) else 20
+    timeout_duration = 3 if auto_flags.get(chat_id) else 25
+    is_topic_mode = False
     try:
-        input0: Message = await bot.listen(editable.chat.id,
-                                           timeout=timeout_duration)
-        raw_text = input0.text
+        input_mode: Message = await bot.listen(editable.chat.id, timeout=timeout_duration)
+        mode_val = input_mode.text.strip().lower()
+        await input_mode.delete(True)
+        if mode_val in ["1", "topic", "t", "forum"]:
+            is_topic_mode = True
+        else:
+            is_topic_mode = False
+    except asyncio.TimeoutError:
+        is_topic_mode = False
+
+    # Obtain Destination Chat ID
+    if is_topic_mode:
+        forum_mgr = ForumManager(bot, BOT_TOKEN)
+        await editable.edit(
+            "__**🎯 Provide the Topic Group ID__\n\n"
+            "<blockquote>🔹 Send the Supergroup ID where Forum Topics are enabled.\n"
+            "Ex: -100XXXXXXXXX\n\n"
+            "⚠️ Ensure Bot is ADMIN with 'Manage Topics' permission!</blockquote>**"
+        )
+        try:
+            input_tg: Message = await bot.listen(editable.chat.id, timeout=timeout_duration)
+            raw_tg = input_tg.text.strip()
+            await input_tg.delete(True)
+            target_chat_id = int(raw_tg)
+        except asyncio.TimeoutError:
+            await editable.edit("⚠️ Timeout! Exiting task.")
+            return
+        except Exception:
+            await editable.edit("❌ Invalid Group ID format. Exiting task.")
+            return
+
+        # Initialize forum cache
+        await editable.edit("🔄 Initializing Forum Topics cache...")
+        await forum_mgr.init_chat(target_chat_id)
+    else:
+        forum_mgr = None
+        await editable.edit(
+            "__**📢 Provide the Channel ID or send /d__\n\n"
+            "<blockquote>🔹 Send Your Channel ID where you want upload files.\n\n"
+            "Ex : -100XXXXXXXXX\n"
+            "Send /d for Current Chat</blockquote>**"
+        )
+        try:
+            input_ch: Message = await bot.listen(editable.chat.id, timeout=timeout_duration)
+            raw_ch = input_ch.text.strip()
+            await input_ch.delete(True)
+        except asyncio.TimeoutError:
+            raw_ch = '/d'
+
+        if "/d" in raw_ch:
+            target_chat_id = m.chat.id
+        else:
+            try:
+                target_chat_id = int(raw_ch)
+            except Exception:
+                target_chat_id = raw_ch
+
+    # Ask Index
+    await editable.edit(f"**Send Your Index File ID Between 1-{total_links_count} (or /d for 1):**")
+    try:
+        input0: Message = await bot.listen(editable.chat.id, timeout=timeout_duration)
+        raw_text = input0.text.strip()
         await input0.delete(True)
     except asyncio.TimeoutError:
         raw_text = '1'
 
-    if int(raw_text) > len(links):
-        await editable.edit(
-            f"**🔹Enter number in range of Index (01-{len(links)})**")
-        processing_request = False  # Reset the processing flag
-        await m.reply_text("**🔹Exiting Task......  **")
-        return
-
-    chat_id = editable.chat.id
-    timeout_duration = 3 if auto_flags.get(chat_id) else 20
-    await editable.edit(
-        f"**1. Enter Batch Name\n2.Send /d For TXT Batch Name**")
+    if raw_text == '/d':
+        raw_text = '1'
     try:
-        input1: Message = await bot.listen(editable.chat.id,
-                                           timeout=timeout_duration)
-        raw_text0 = input1.text
+        start_index = int(raw_text)
+    except Exception:
+        start_index = 1
+
+    # Ask Batch Name
+    await editable.edit(f"**1. Enter Batch Name\n2. Send /d For TXT Batch Name**")
+    try:
+        input1: Message = await bot.listen(editable.chat.id, timeout=timeout_duration)
+        raw_text0 = input1.text.strip()
         await input1.delete(True)
     except asyncio.TimeoutError:
         raw_text0 = '/d'
+    b_name = file_name.replace('_', ' ') if raw_text0 == '/d' else raw_text0
 
-    if raw_text0 == '/d':
-        b_name = file_name.replace('_', ' ')
-    else:
-        b_name = raw_text0
-
-    chat_id = editable.chat.id
-    timeout_duration = 3 if auto_flags.get(chat_id) else 20
+    # Ask Resolution
     await editable.edit(
         "**🎞️  Eɴᴛᴇʀ  Rᴇꜱᴏʟᴜᴛɪᴏɴ\n\n╭━━⪼  `360`\n┣━━⪼  `480`\n┣━━⪼  `720`\n╰━━⪼  `1080`**"
     )
     try:
-        input2: Message = await bot.listen(editable.chat.id,
-                                           timeout=timeout_duration)
-        raw_text2 = input2.text
+        input2: Message = await bot.listen(editable.chat.id, timeout=timeout_duration)
+        raw_text2 = input2.text.strip()
         await input2.delete(True)
     except asyncio.TimeoutError:
         raw_text2 = '480'
     quality = f"{raw_text2}p"
-    try:
-        if raw_text2 == "144":
-            res = "256x144"
-        elif raw_text2 == "240":
-            res = "426x240"
-        elif raw_text2 == "360":
-            res = "640x360"
-        elif raw_text2 == "480":
-            res = "854x480"
-        elif raw_text2 == "720":
-            res = "1280x720"
-        elif raw_text2 == "1080":
-            res = "1920x1080"
-        else:
-            res = "UN"
-    except Exception:
-        res = "UN"
-    chat_id = editable.chat.id
-    timeout_duration = 3 if auto_flags.get(chat_id) else 20
 
+    # Ask Watermark
     await editable.edit(
         "**1. Send A Text For Watermark\n2. Send /d for no watermark & fast dwnld**"
     )
     try:
-        inputx: Message = await bot.listen(editable.chat.id,
-                                           timeout=timeout_duration)
-        raw_textx = inputx.text
+        inputx: Message = await bot.listen(editable.chat.id, timeout=timeout_duration)
+        raw_textx = inputx.text.strip()
         await inputx.delete(True)
     except asyncio.TimeoutError:
         raw_textx = '/d'
+    watermark_val = "/d" if raw_textx == '/d' else raw_textx
 
-    # Define watermark variable based on input
-    global watermark
-    if raw_textx == '/d':
-        watermark = "/d"
-    else:
-        watermark = raw_textx
-
+    # Ask Credit
     await editable.edit(
         f"**1. Send Your Name For Caption Credit\n2. Send /d For default Credit **"
     )
     try:
-        input3: Message = await bot.listen(editable.chat.id,
-                                           timeout=timeout_duration)
-        raw_text3 = input3.text
+        input3: Message = await bot.listen(editable.chat.id, timeout=timeout_duration)
+        raw_text3 = input3.text.strip()
         await input3.delete(True)
     except asyncio.TimeoutError:
         raw_text3 = '/d'
 
+    PRENAME = ""
     if raw_text3 == '/d':
         CR = f"{CREDIT}"
     elif "," in raw_text3:
-        CR, PRENAME = raw_text3.split(",")
+        parts_cr = raw_text3.split(",", 1)
+        CR = parts_cr[0].strip()
+        PRENAME = parts_cr[1].strip()
     else:
         CR = raw_text3
-    chat_id = editable.chat.id
-    timeout_duration = 3 if auto_flags.get(chat_id) else 20
-    await editable.edit(
-        f"**1. Send PW Token For MPD urls\n 2. Send /d For Others **")
+
+    # Ask PW Token
+    await editable.edit(f"**1. Send PW Token For MPD urls\n 2. Send /d For Others **")
     try:
-        input4: Message = await bot.listen(editable.chat.id,
-                                           timeout=timeout_duration)
-        raw_text4 = input4.text
+        input4: Message = await bot.listen(editable.chat.id, timeout=timeout_duration)
+        raw_text4 = input4.text.strip()
         await input4.delete(True)
     except asyncio.TimeoutError:
         raw_text4 = '/d'
-    chat_id = editable.chat.id
-    timeout_duration = 3 if auto_flags.get(chat_id) else 20
+
+    # Ask Thumbnail
     await editable.edit(
-        "**1. Send A Image For Thumbnail\n2. Send /d For default Thumbnail\n3. Send /skip For Skipping**"
+        "**1. Send An Image For Thumbnail\n2. Send /d For default Thumbnail\n3. Send /skip For Skipping**"
     )
-    thumb = "/d"  # Set default value
+    thumb = "/d"
     try:
         input6 = await bot.listen(chat_id=m.chat.id, timeout=timeout_duration)
-
         if input6.photo:
-            # If user sent a photo
-            if not os.path.exists("downloads"):
-                os.makedirs("downloads")
+            os.makedirs("downloads", exist_ok=True)
             temp_file = f"downloads/thumb_{m.from_user.id}.jpg"
             try:
-                # Download photo using correct Pyrogram method
-                await bot.download_media(message=input6.photo,
-                                         file_name=temp_file)
+                await bot.download_media(message=input6.photo, file_name=temp_file)
                 thumb = temp_file
-                await editable.edit(
-                    "**✅ Custom thumbnail saved successfully!**")
-                await asyncio.sleep(1)
-            except Exception as e:
-                print(f"Error downloading thumbnail: {str(e)}")
-                await editable.edit(
-                    "**⚠️ Failed to save thumbnail! Using default.**")
+            except Exception:
                 thumb = "/d"
-                await asyncio.sleep(1)
         elif input6.text:
-            if input6.text == "/d":
-                thumb = "/d"
-                await editable.edit("**📰 Using default thumbnail.**")
-                await asyncio.sleep(1)
-            elif input6.text == "/skip":
+            if input6.text.strip() == "/skip":
                 thumb = "no"
-                await editable.edit("**♻️ Skipping thumbnail.**")
-                await asyncio.sleep(1)
             else:
-                await editable.edit(
-                    "**⚠️ Invalid input! Using default thumbnail.**")
-                await asyncio.sleep(1)
+                thumb = "/d"
         await input6.delete(True)
     except asyncio.TimeoutError:
-        await editable.edit("**⚠️ Timeout! Using default thumbnail.**")
-        await asyncio.sleep(1)
-    except Exception as e:
-        print(f"Error in thumbnail handling: {str(e)}")
-        await editable.edit("**⚠️ Error! Using default thumbnail.**")
-        await asyncio.sleep(1)
+        thumb = "/d"
 
-    await editable.edit(
-        "__**📢 Provide the Channel ID or send /d__\n\n<blockquote>🔹Send Your Channel ID where you want upload files.\n\nEx : -100XXXXXXXXX</blockquote>\n**"
-    )
-    try:
-        input7: Message = await bot.listen(editable.chat.id,
-                                           timeout=timeout_duration)
-        raw_text7 = input7.text
-        await input7.delete(True)
-    except asyncio.TimeoutError:
-        raw_text7 = '/d'
-
-    if "/d" in raw_text7:
-        channel_id = m.chat.id
-    else:
-        channel_id = raw_text7
     await editable.delete()
 
+    # Task Started Notice
     try:
-        if raw_text == "1":
-            batch_message = await bot.send_message(
-                chat_id=channel_id,
-                text=f"<blockquote><b>🎯Target Batch : {b_name}</b></blockquote>"
+        if not is_topic_mode:
+            await bot.send_message(
+                chat_id=target_chat_id,
+                text=f"<blockquote><b>🎯 Target Batch : {b_name}</b></blockquote>"
             )
-            if "/d" not in raw_text7:
-                await bot.send_message(
-                    chat_id=m.chat.id,
-                    text=
-                    f"<blockquote><b><i>🎯Target Batch : {b_name}</i></b></blockquote>\n\n🔄 Your Task is under processing, please check your Set Channel📱. Once your task is complete, I will inform you 📩"
-                )
-                await bot.send_message(
-                    chat_id=m.chat.id,
-                    text=
-                    f"<blockquote><b><i>🎯Target Batch : {b_name}</i></b></blockquote>\n\n🔄 Your Task is under processing, please check your Set Channel📱. Once your task is complete, I will inform you 📩"
-                )
-                await bot.pin_chat_message(channel_id, batch_message.id)
-                message_id = batch_message.id + 1
-                await bot.delete_messages(channel_id, message_id)
-                await bot.pin_chat_message(channel_id, message_id)
-        else:
-            if "/d" not in raw_text7:
-                await bot.send_message(
-                    chat_id=m.chat.id,
-                    text=
-                    f"<blockquote><b><i>🎯Target Batch : {b_name}</i></b></blockquote>\n\n🔄 Your Task is under processing, please check your Set Channel📱. Once your task is complete, I will inform you 📩"
-                )
+        if target_chat_id != m.chat.id:
+            mode_label = "Topic Group (Forum) 🎯" if is_topic_mode else "Channel 📱"
+            await bot.send_message(
+                chat_id=m.chat.id,
+                text=f"<blockquote><b><i>🎯 Target Batch : {b_name}</i></b></blockquote>\n\n"
+                     f"🔄 <b>Task is under processing!</b> Uploading to {mode_label}.\n"
+                     f"Once your task is complete, I will inform you here 📩"
+            )
     except Exception as e:
-        await m.reply_text(
-            f"**Fail Reason »**\n<blockquote><i>{e}</i></blockquote>\n\n✦𝐁𝐨𝐭 𝐌𝐚𝐝𝐞 𝐁𝐲 ✦ {CREDIT}🌟`"
-        )
+        await m.reply_text(f"**Notice:**\n<blockquote><i>{e}</i></blockquote>")
 
     failed_count = 0
-    count = int(raw_text)
-    arg = int(raw_text)
+    success_count = 0
+    active_topic_id = None
+    last_topic_name = None
+
     try:
-        for i in range(arg - 1, len(links)):
-            Vxy = links[i][1].replace(
-                "file/d/", "uc?export=download&id=").replace(
-                    "www.youtube-nocookie.com/embed",
-                    "youtu.be").replace("?modestbranding=1",
-                                        "").replace("/view?usp=sharing", "")
-            url = "https://" + Vxy
-            link0 = "https://" + Vxy
+        for chapter in chapters:
+            items_to_process = [it for it in chapter['items'] if it['index'] >= start_index]
+            if not items_to_process:
+                continue
 
-            name1 = links[i][0].replace("(", "[").replace(")", "]").replace(
-                "_", "").replace("\t", "").replace(":", "").replace(
-                    "/", "").replace("+", "").replace("#", "").replace(
-                        "|", "").replace("@", "").replace("*", "").replace(
-                            ".", "").replace("https", "").replace("http",
-                                                                  "").strip()
-            if "," in raw_text3:
-                name = f'{PRENAME} {name1[:60]}'
+            # Forum Topic Mode
+            if is_topic_mode and forum_mgr:
+                if chapter['topic_name'] != last_topic_name:
+                    last_topic_name = chapter['topic_name']
+                    active_topic_id = await forum_mgr.get_or_create_topic(target_chat_id, chapter['topic_name'])
+                    await asyncio.sleep(0.5)
+
+                # Send Chapter Top Header inside topic thread
+                chapter_header = (
+                    f"┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n"
+                    f"📁 <b>{chapter['chapter_title']}</b>\n"
+                    f"┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
+                )
+                try:
+                    await bot.send_message(
+                        chat_id=target_chat_id,
+                        text=chapter_header,
+                        reply_to_message_id=active_topic_id
+                    )
+                except Exception as e:
+                    print(f"Error sending topic chapter header: {e}")
             else:
-                name = f'{name1[:60]}'
+                active_topic_id = None
+                # Send Chapter Banner in Channel
+                chapter_header = (
+                    f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"📁 <b>{chapter['chapter_title']}</b>\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                )
+                try:
+                    await bot.send_message(
+                        chat_id=target_chat_id,
+                        text=chapter_header
+                    )
+                except Exception as e:
+                    print(f"Error sending channel chapter header: {e}")
 
-            user_id = m.from_user.id
+            # Process each item in chapter
+            for item in items_to_process:
+                idx_num = item['index']
+                idx_str = item['index_str']
+                name1 = item['clean_name']
+                name = f"{PRENAME} {name1[:60]}" if PRENAME else name1[:60]
+                url = item['url']
+                link0 = url
 
-            if "visionias" in url:
-                async with ClientSession() as session:
-                    async with session.get(
-                            url,
-                            headers=
-                        {
-                            'Accept':
-                            'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
-                            'Accept-Language': 'en-US,en;q=0.9',
-                            'Cache-Control': 'no-cache',
-                            'Connection': 'keep-alive',
-                            'Pragma': 'no-cache',
-                            'Referer': 'http://www.visionias.in/',
-                            'Sec-Fetch-Dest': 'iframe',
-                            'Sec-Fetch-Mode': 'navigate',
-                            'Sec-Fetch-Site': 'cross-site',
-                            'Upgrade-Insecure-Requests': '1',
-                            'User-Agent':
-                            'Mozilla/5.0 (Linux; Android 12; RMX2121) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Mobile Safari/537.36',
-                            'sec-ch-ua':
-                            '"Chromium";v="107", "Not=A?Brand";v="24"',
-                            'sec-ch-ua-mobile': '?1',
-                            'sec-ch-ua-platform': '"Android"',
-                        }) as resp:
-                        text = await resp.text()
-                        url = re.search(r"(https://.*?playlist.m3u8.*?)\"",
-                                        text).group(1)
-
-            if "acecwply" in url:
-                cmd = f'yt-dlp -o "{name}.%(ext)s" -f "bestvideo[height<={raw_text2}]+bestaudio" --hls-prefer-ffmpeg --no-keep-video --remux-video mkv --no-warning "{url}"'
-
-            elif "https://static-trans-v1.classx.co.in" in url or "https://static-trans-v2.classx.co.in" in url:
-                base_with_params, signature = url.split("*")
-
-                base_clean = base_with_params.split(".mkv")[0] + ".mkv"
-
-                if "static-trans-v1.classx.co.in" in url:
-                    base_clean = base_clean.replace(
-                        "https://static-trans-v1.classx.co.in",
-                        "https://appx-transcoded-videos-mcdn.akamai.net.in")
-                elif "static-trans-v2.classx.co.in" in url:
-                    base_clean = base_clean.replace(
-                        "https://static-trans-v2.classx.co.in",
-                        "https://transcoded-videos-v2.classx.co.in")
-
-                url = f"{base_clean}*{signature}"
-
-            elif "https://static-rec.classx.co.in/drm/" in url:
-                base_with_params, signature = url.split("*")
-
-                base_clean = base_with_params.split("?")[0]
-
-                base_clean = base_clean.replace(
-                    "https://static-rec.classx.co.in",
-                    "https://appx-recordings-mcdn.akamai.net.in")
-
-                url = f"{base_clean}*{signature}"
-
-            elif "https://static-wsb.classx.co.in/" in url:
-                clean_url = url.split("?")[0]
-
-                clean_url = clean_url.replace(
-                    "https://static-wsb.classx.co.in",
-                    "https://appx-wsb-gcp-mcdn.akamai.net.in")
-
-                url = clean_url
-
-            elif "https://static-db.classx.co.in/" in url:
-                if "*" in url:
-                    base_url, key = url.split("*", 1)
-                    base_url = base_url.split("?")[0]
-                    base_url = base_url.replace(
-                        "https://static-db.classx.co.in",
-                        "https://appxcontent.kaxa.in")
-                    url = f"{base_url}*{key}"
-                else:
-                    base_url = url.split("?")[0]
-                    url = base_url.replace("https://static-db.classx.co.in",
-                                           "https://appxcontent.kaxa.in")
-
-            elif "https://static-db-v2.classx.co.in/" in url:
-                if "*" in url:
-                    base_url, key = url.split("*", 1)
-                    base_url = base_url.split("?")[0]
-                    base_url = base_url.replace(
-                        "https://static-db-v2.classx.co.in",
-                        "https://appx-content-v2.classx.co.in")
-                    url = f"{base_url}*{key}"
-                else:
-                    base_url = url.split("?")[0]
-                    url = base_url.replace(
-                        "https://static-db-v2.classx.co.in",
-                        "https://appx-content-v2.classx.co.in")
+                # Handle URL cleanups
+                Vxy = url.replace("https://", "").replace("http://", "").replace(
+                    "file/d/", "uc?export=download&id=").replace(
+                        "www.youtube-nocookie.com/embed",
+                        "youtu.be").replace("?modestbranding=1",
+                                            "").replace("/view?usp=sharing", "")
+                url = "https://" + Vxy
 
                 user_id = m.from_user.id
 
-            elif any(x in url for x in [
+                # VisionIAS
+                if "visionias" in url:
+                    try:
+                        async with aiohttp.ClientSession() as session:
+                            async with session.get(
+                                url,
+                                headers={
+                                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                                    'Referer': 'http://www.visionias.in/',
+                                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                                }) as resp:
+                                text = await resp.text()
+                                match_m3u8 = re.search(r"(https://.*?playlist.m3u8.*?)\"", text)
+                                if match_m3u8:
+                                    url = match_m3u8.group(1)
+                    except Exception:
+                        pass
+
+                # ClassX & Transcoded / Recordings
+                if "https://static-trans-v1.classx.co.in" in url or "https://static-trans-v2.classx.co.in" in url:
+                    if "*" in url:
+                        base_with_params, signature = url.split("*", 1)
+                        base_clean = base_with_params.split(".mkv")[0] + ".mkv"
+                        if "static-trans-v1.classx.co.in" in url:
+                            base_clean = base_clean.replace("https://static-trans-v1.classx.co.in", "https://appx-transcoded-videos-mcdn.akamai.net.in")
+                        else:
+                            base_clean = base_clean.replace("https://static-trans-v2.classx.co.in", "https://transcoded-videos-v2.classx.co.in")
+                        url = f"{base_clean}*{signature}"
+
+                elif "https://static-rec.classx.co.in/drm/" in url:
+                    if "*" in url:
+                        base_with_params, signature = url.split("*", 1)
+                        base_clean = base_with_params.split("?")[0].replace("https://static-rec.classx.co.in", "https://appx-recordings-mcdn.akamai.net.in")
+                        url = f"{base_clean}*{signature}"
+
+                elif "https://static-wsb.classx.co.in/" in url:
+                    url = url.split("?")[0].replace("https://static-wsb.classx.co.in", "https://appx-wsb-gcp-mcdn.akamai.net.in")
+
+                elif "https://static-db.classx.co.in/" in url:
+                    if "*" in url:
+                        base_url, key = url.split("*", 1)
+                        base_url = base_url.split("?")[0].replace("https://static-db.classx.co.in", "https://appxcontent.kaxa.in")
+                        url = f"{base_url}*{key}"
+                    else:
+                        url = url.split("?")[0].replace("https://static-db.classx.co.in", "https://appxcontent.kaxa.in")
+
+                elif "https://static-db-v2.classx.co.in/" in url:
+                    if "*" in url:
+                        base_url, key = url.split("*", 1)
+                        base_url = base_url.split("?")[0].replace("https://static-db-v2.classx.co.in", "https://appx-content-v2.classx.co.in")
+                        url = f"{base_url}*{key}"
+                    else:
+                        url = url.split("?")[0].replace("https://static-db-v2.classx.co.in", "https://appx-content-v2.classx.co.in")
+
+                # DRM / Classplus API resolution
+                elif any(x in url for x in [
                     "https://cpvod.testbook.com/", "classplusapp.com/drm/",
-                    "media-cdn.classplusapp.com",
-                    "media-cdn-alisg.classplusapp.com",
+                    "media-cdn.classplusapp.com", "media-cdn-alisg.classplusapp.com",
                     "media-cdn-a.classplusapp.com", "tencdn.classplusapp",
                     "videos.classplusapp", "webvideos.classplusapp.com"
-            ]):
-                # normalize cpvod -> media-cdn path used by API
-                url_norm = url.replace(
-                    "https://cpvod.testbook.com/",
-                    "https://media-cdn.classplusapp.com/drm/")
-                api_url_call = f"https://itsgolu-cp-api.vercel.app/itsgolu?url={url_norm}@ITSGOLU_OFFICIAL&user_id={user_id}"
-                keys_string = ""
-                mpd = None
-                try:
-                    resp = requests.get(api_url_call, timeout=30)
-                    # parse JSON safely
+                ]):
+                    url_norm = url.replace("https://cpvod.testbook.com/", "https://media-cdn.classplusapp.com/drm/")
+                    api_url_call = f"https://itsgolu-cp-api.vercel.app/itsgolu?url={url_norm}@ITSGOLU_OFFICIAL&user_id={user_id}"
+                    keys_string = ""
+                    mpd = None
                     try:
-                        data = resp.json()
-                    except Exception:
-                        data = None
-
-                    # DRM response (MPD + KEYS)
-                    if isinstance(data,
-                                  dict) and "KEYS" in data and "MPD" in data:
-                        mpd = data.get("MPD")
-                        keys = data.get("KEYS", [])
-                        url = mpd
-                        keys_string = " ".join([f"--key {k}" for k in keys])
-
-                    # Non-DRM response (direct url)
-                    elif isinstance(data, dict) and "url" in data:
-                        url = data.get("url")
-                        keys_string = ""
-
-                    else:
-                        # Unexpected response format — fallback to helper
-                        try:
-                            res = helper.get_mps_and_keys2(url_norm)
-                            if res:
-                                mpd, keys = res
-                                url = mpd
-                                keys_string = " ".join(
-                                    [f"--key {k}" for k in keys])
-                            else:
-                                keys_string = ""
-                        except Exception:
-                            keys_string = ""
-                except Exception:
-                    # API failed — attempt helper fallback
-                    try:
-                        res = helper.get_mps_and_keys2(url_norm)
-                        if res:
-                            mpd, keys = res
+                        resp = requests.get(api_url_call, timeout=30)
+                        data = resp.json() if resp.status_code == 200 else None
+                        if isinstance(data, dict) and "KEYS" in data and "MPD" in data:
+                            mpd = data.get("MPD")
+                            keys = data.get("KEYS", [])
                             url = mpd
-                            keys_string = " ".join(
-                                [f"--key {k}" for k in keys])
-                        else:
-                            keys_string = ""
+                            keys_string = " ".join([f"--key {k}" for k in keys])
+                        elif isinstance(data, dict) and "url" in data:
+                            url = data.get("url")
                     except Exception:
-                        keys_string = ""
-            elif "tencdn.classplusapp" in url:
-                headers = {
-                    'host': 'api.classplusapp.com',
-                    'x-access-token': f'{raw_text4}',
-                    'accept-language': 'EN',
-                    'api-version': '18',
-                    'app-version': '1.4.73.2',
-                    'build-number': '35',
-                    'connection': 'Keep-Alive',
-                    'content-type': 'application/json',
-                    'device-details': 'Xiaomi_Redmi 7_SDK-32',
-                    'device-id': 'c28d3cb16bbdac01',
-                    'region': 'IN',
-                    'user-agent': 'Mobile-Android',
-                    'webengage-luid': '00000187-6fe4-5d41-a530-26186858be4c',
-                    'accept-encoding': 'gzip'
-                }
-                params = {"url": f"{url}"}
-                response = requests.get(
-                    'https://api.classplusapp.com/cams/uploader/video/jw-signed-url',
-                    headers=headers,
-                    params=params)
-                url = response.json()['url']
+                        pass
 
-            elif 'videos.classplusapp' in url:
-                url = requests.get(
-                    f'https://api.classplusapp.com/cams/uploader/video/jw-signed-url?url={url}',
-                    headers={
-                        'x-access-token': f'{cptoken}'
-                    }).json()['url']
+                elif "childId" in url and "parentId" in url:
+                    url = f"https://anonymouspwplayer-0e5a3f512dec.herokuapp.com/pw?url={url}&token={raw_text4}"
 
-            elif 'media-cdn.classplusapp.com' in url or 'media-cdn-alisg.classplusapp.com' in url or 'media-cdn-a.classplusapp.com' in url:
-                headers = {
-                    'host': 'api.classplusapp.com',
-                    'x-access-token': f'{cptoken}',
-                    'accept-language': 'EN',
-                    'api-version': '18',
-                    'app-version': '1.4.73.2',
-                    'build-number': '35',
-                    'connection': 'Keep-Alive',
-                    'content-type': 'application/json',
-                    'device-details': 'Xiaomi_Redmi 7_SDK-32',
-                    'device-id': 'c28d3cb16bbdac01',
-                    'region': 'IN',
-                    'user-agent': 'Mobile-Android',
-                    'webengage-luid': '00000187-6fe4-5d41-a530-26186858be4c',
-                    'accept-encoding': 'gzip'
-                }
-                params = {"url": f"{url}"}
-                response = requests.get(
-                    'https://api.classplusapp.com/cams/uploader/video/jw-signed-url',
-                    headers=headers,
-                    params=params)
-                url = response.json()['url']
+                if "edge.api.brightcove.com" in url and "cwtoken" in globals():
+                    bcov = f'bcov_auth={cwtoken}'
+                    url = url.split("bcov_auth")[0] + bcov
 
-            elif "childId" in url and "parentId" in url:
-                url = f"https://anonymouspwplayer-0e5a3f512dec.herokuapp.com/pw?url={url}&token={raw_text4}"
+                elif ("d1d34p8vz63oiq" in url or "sec1.pw.live" in url) and raw_text4 != '/d':
+                    url = f"https://anonymouspwplayer-b99f57957198.herokuapp.com/pw?url={url}?token={raw_text4}"
 
-            if "edge.api.brightcove.com" in url:
-                bcov = f'bcov_auth={cwtoken}'
-                url = url.split("bcov_auth")[0] + bcov
+                if ".pdf*" in url:
+                    url = f"https://dragoapi.vercel.app/pdf/{url}"
 
-            elif "d1d34p8vz63oiq" in url or "sec1.pw.live" in url:
-                url = f"https://anonymouspwplayer-b99f57957198.herokuapp.com/pw?url={url}?token={raw_text4}"
+                elif 'encrypted.m' in url and '*' in url:
+                    appxkey = url.split('*')[1]
+                    url = url.split('*')[0]
 
-            if ".pdf*" in url:
-                url = f"https://dragoapi.vercel.app/pdf/{url}"
+                # Setup yt-dlp format cmd
+                if "youtu" in url:
+                    ytf = f"bv*[height<={raw_text2}][ext=mp4]+ba[ext=m4a]/b[height<=?{raw_text2}]"
+                elif "embed" in url:
+                    ytf = f"bestvideo[height<={raw_text2}]+bestaudio/best[height<={raw_text2}]"
+                else:
+                    ytf = f"b[height<={raw_text2}]/bv[height<={raw_text2}]+ba/b/bv+ba"
 
-            elif 'encrypted.m' in url:
-                appxkey = url.split('*')[1]
-                url = url.split('*')[0]
+                if "jw-prod" in url:
+                    url = url.replace("https://apps-s3-jw-prod.utkarshapp.com/admin_v1/file_library/videos", "https://d1q5ugnejk3zoi.cloudfront.net/ut-production-jw/admin_v1/file_library/videos")
+                    cmd = f'yt-dlp -o "{name}.mp4" "{url}"'
+                elif "webvideos.classplusapp." in url:
+                    cmd = f'yt-dlp --add-header "referer:https://web.classplusapp.com/" --add-header "x-cdn-tag:empty" -f "{ytf}" "{url}" -o "{name}.mp4"'
+                elif "youtube.com" in url or "youtu.be" in url:
+                    cmd = f'yt-dlp -f "{ytf}" "{url}" -o "{name}.mp4"'
+                else:
+                    cmd = f'yt-dlp -f "{ytf}" "{url}" -o "{name}.mp4"'
 
-            if "youtu" in url:
-                ytf = f"bv*[height<={raw_text2}][ext=mp4]+ba[ext=m4a]/b[height<=?{raw_text2}]"
-            elif "embed" in url:
-                ytf = f"bestvideo[height<={raw_text2}]+bestaudio/best[height<={raw_text2}]"
-            else:
-                ytf = f"b[height<={raw_text2}]/bv[height<={raw_text2}]+ba/b/bv+ba"
-
-            if "jw-prod" in url:
-                url = url.replace(
-                    "https://apps-s3-jw-prod.utkarshapp.com/admin_v1/file_library/videos",
-                    "https://d1q5ugnejk3zoi.cloudfront.net/ut-production-jw/admin_v1/file_library/videos"
+                # Captions keeping exact TXT details
+                cc_video = (
+                    f"<b>🏷️ Iɴᴅᴇx ID :</b> {idx_str}\n\n"
+                    f"<b>🎞️ Tɪᴛʟᴇ :</b> {name1}\n\n"
+                    f"<blockquote>📁 𝗖𝗵𝗮𝗽𝘁𝗲𝗿 : {chapter['chapter_title']}</blockquote>\n"
+                    f"<blockquote>📚 𝗕𝗮𝘁𝗰𝗵 : {b_name}</blockquote>\n\n"
+                    f"<b>🎓 Extracted by ➤ {CR}</b>"
                 )
-                cmd = f'yt-dlp -o "{name}.mp4" "{url}"'
-            elif "webvideos.classplusapp." in url:
-                cmd = f'yt-dlp --add-header "referer:https://web.classplusapp.com/" --add-header "x-cdn-tag:empty" -f "{ytf}" "{url}" -o "{name}.mp4"'
-            elif "youtube.com" in url or "youtu.be" in url:
-                cmd = f'yt-dlp --cookies youtube_cookies.txt -f "{ytf}" "{url}" -o "{name}".mp4'
-            else:
-                cmd = f'yt-dlp -f "{ytf}" "{url}" -o "{name}.mp4"'
+                cc_pdf = (
+                    f"<b>🏷️ Iɴᴅᴇx ID :</b> {idx_str}\n\n"
+                    f"<b>📄 Tɪᴛʟᴇ :</b> {name1}\n\n"
+                    f"<blockquote>📁 𝗖𝗵𝗮𝗽𝘁𝗲𝗿 : {chapter['chapter_title']}</blockquote>\n"
+                    f"<blockquote>📚 𝗕𝗮𝘁𝗰𝗵 : {b_name}</blockquote>\n\n"
+                    f"<b>🎓 Extracted by ➤ {CR}</b>"
+                )
+                cc_img = (
+                    f"<b>🏷️ Iɴᴅᴇx ID :</b> {idx_str}\n\n"
+                    f"<b>🖼️ Tɪᴛʟᴇ :</b> {name1}\n\n"
+                    f"<blockquote>📁 𝗖𝗵𝗮𝗽𝘁𝗲𝗿 : {chapter['chapter_title']}</blockquote>\n"
+                    f"<blockquote>📚 𝗕𝗮𝘁𝗰𝗵 : {b_name}</blockquote>\n\n"
+                    f"<b>🎓 Extracted by ➤ {CR}</b>"
+                )
 
-            try:
-                cc = (f"<b>🏷️ Iɴᴅᴇx ID  :</b> {str(count).zfill(3)}\n\n"
-                      f"<b>🎞️  Tɪᴛʟᴇ :</b> {name1} \n\n"
-                      f"<blockquote>📚  𝗕ᴀᴛᴄʜ : {b_name}</blockquote>"
-                      f"\n\n<b>🎓  Extracted by ➤ {CR}</b>")
-                cc1 = (f"<b>🏷️ Iɴᴅᴇx ID :</b> {str(count).zfill(3)}\n\n"
-                       f"<b>📑  Tɪᴛʟᴇ :</b> {name1} \n\n"
-                       f"<blockquote>📚  𝗕ᴀᴛᴄʜ : {b_name}</blockquote>"
-                       f"\n\n<b>🎓  Extracted by ➤ {CR}</b>")
-                cczip = f'[📁]Zip Id : {str(count).zfill(3)}\n**Zip Title :** `{name1} .zip`\n<blockquote><b>Batch Name :</b> {b_name}</blockquote>\n\n**Extracted by➤**{CR}\n'
-                ccimg = (f"<b>🏷️ Iɴᴅᴇx ID <b>: {str(count).zfill(3)} \n\n"
-                         f"<b>🖼️  Tɪᴛʟᴇ</b> : {name1} \n\n"
-                         f"<blockquote>📚  𝗕ᴀᴛᴄʜ : {b_name}</blockquote>"
-                         f"\n\n<b>🎓  Uᴘʟᴏᴀᴅ Bʏ : {CR}</b>")
-                ccm = f'[🎵]Audio Id : {str(count).zfill(3)}\n**Audio Title :** `{name1} .mp3`\n<blockquote><b>Batch Name :</b> {b_name}</blockquote>\n\n**Extracted by➤**{CR}\n'
-                cchtml = f'[🌐]Html Id : {str(count).zfill(3)}\n**Html Title :** `{name1} .html`\n<blockquote><b>Batch Name :</b> {b_name}</blockquote>\n\n**Extracted by➤**{CR}\n'
-
-                if "drive" in url:
-                    try:
-                        ka = await helper.download(url, name)
-                        copy = await bot.send_document(chat_id=channel_id,
-                                                       document=ka,
-                                                       caption=cc1)
-                        count += 1
-                        os.remove(ka)
-                    except FloodWait as e:
-                        await m.reply_text(str(e))
-                        time.sleep(e.x)
-                        continue
-
-                elif ".pdf" in url:
-
-                    try:
-                
-                        url = url.replace(" ", "%20")
-                        filename = f"{name}.pdf"
-                
-                        referers = [
-                            "https://nirmitacademy.akamai.net.in/",
-                            "https://test.classx.co.in/",
-                            "https://acadmy.akamai.net.in/",
-                            "https://test.akamai.net.in/"
-                        ]
-                
-                        scraper = cloudscraper.create_scraper()
-                        success = False
-                
-                        for ref in referers:
-                
-                            headers = {
-                                "User-Agent": "Mozilla/5.0",
-                                "Referer": ref
-                                
-                            }
-                
-                            response = scraper.get(url, headers=headers, stream=True)
-                
-                            if response.status_code == 200:
-                
-                                with open(filename, "wb") as f:
-                                    for chunk in response.iter_content(1024 * 1024):
-                                        if chunk:
-                                            f.write(chunk)
-                
-                                await bot.send_document(
-                                    chat_id=channel_id,
-                                    document=filename,
-                                    caption=cc1
-                                )
-                
-                                count += 1
-                
-                                if os.path.exists(filename):
-                                    os.remove(filename)
-                
-                                success = True
-                                break
-                
-                        if not success:
-                            raise Exception("All referers failed")
-                
-                    except Exception as e:
-                
-                        await bot.send_message(
-                            channel_id,
-                            f"⚠️ PDF Download Failed\n\n{name1}\n\nReason: {str(e)}"
-                        )
-                
-                        failed_count += 1
-                        count += 1
-                        continue
-                    
-
-                elif ".ws" in url and url.endswith(".ws"):
-                    try:
-                        await helper.pdf_download(
-                            f"{api_url}utkash-ws?url={url}&authorization={api_token}",
-                            f"{name}.html")
-                        time.sleep(1)
-                        await bot.send_document(chat_id=channel_id,
-                                                document=f"{name}.html",
-                                                caption=cchtml)
-                        os.remove(f'{name}.html')
-                        count += 1
-                    except FloodWait as e:
-                        await m.reply_text(str(e))
-                        time.sleep(e.x)
-                        continue
-
-                elif any(ext in url for ext in [".jpg", ".jpeg", ".png"]):
-                    try:
-                        ext = url.split('.')[-1]
-                        cmd = f'yt-dlp -o "{name}.{ext}" "{url}"'
-                        download_cmd = f"{cmd} -R 25 --fragment-retries 25"
-                        os.system(download_cmd)
-                        copy = await bot.send_photo(chat_id=channel_id,
-                                                    photo=f'{name}.{ext}',
-                                                    caption=ccimg)
-                        count += 1
-                        os.remove(f'{name}.{ext}')
-                    except FloodWait as e:
-                        await m.reply_text(str(e))
-                        time.sleep(e.x)
-                        continue
-
-                elif any(ext in url for ext in [".mp3", ".wav", ".m4a"]):
-                    try:
-                        ext = url.split('.')[-1]
-                        cmd = f'yt-dlp -x --audio-format {ext} -o "{name}.{ext}" "{url}"'
-                        download_cmd = f"{cmd} -R 25 --fragment-retries 25"
-                        os.system(download_cmd)
-                        await bot.send_document(chat_id=channel_id,
-                                                document=f'{name}.{ext}',
-                                                caption=cc1)
-                        os.remove(f'{name}.{ext}')
-                    except FloodWait as e:
-                        await m.reply_text(str(e))
-                        time.sleep(e.x)
-                        continue
-
-                elif 'encrypted.m' in url:
-                    Show = f"<i><b>Video APPX Encrypted Downloading</b></i>\n<blockquote><b>{str(count).zfill(3)}) {name1}</b></blockquote>"
-                    prog = await bot.send_message(
-                        channel_id, Show, disable_web_page_preview=True)
-                    try:
-
-                        res_file = await helper.download_and_decrypt_video(
-                            url, cmd, name, appxkey)
-                        filename = res_file
-                        await prog.delete(True)
-                        if os.path.exists(filename):
-                            await helper.send_vid(bot,
-                                                  m,
-                                                  cc,
-                                                  filename,
-                                                  thumb,
-                                                  name,
-                                                  prog,
-                                                  channel_id,
-                                                  watermark=watermark)
-                            count += 1
-                        else:
-                            await bot.send_message(
-                                channel_id,
-                                f'⚠️**Downloading Failed**⚠️\n**Name** =>> `{str(count).zfill(3)} {name1}`\n**Url** =>> {link0}\n\n<blockquote><i><b>Failed Reason: {str(e)}</b></i></blockquote>',
-                                disable_web_page_preview=True)
-                            failed_count += 1
-                            count += 1
+                try:
+                    # 1. Google Drive
+                    if "drive" in url:
+                        try:
+                            ka = await helper.download(url, name)
+                            await bot.send_document(
+                                chat_id=target_chat_id,
+                                document=ka,
+                                caption=cc_pdf,
+                                file_name=f"{name1}.pdf",
+                                reply_to_message_id=active_topic_id
+                            )
+                            success_count += 1
+                            if os.path.exists(ka):
+                                os.remove(ka)
+                        except FloodWait as e:
+                            await asyncio.sleep(e.x)
                             continue
 
-                    except Exception as e:
+                    # 2. PDF Files (with Akamai signed URL direct download & referer fallback)
+                    elif ".pdf" in url:
+                        pdf_file = f"{name1}.pdf"
+                        try:
+                            await helper.download_pdf_safe(url, pdf_file)
+                            await bot.send_document(
+                                chat_id=target_chat_id,
+                                document=pdf_file,
+                                caption=cc_pdf,
+                                file_name=pdf_file,
+                                reply_to_message_id=active_topic_id
+                            )
+                            success_count += 1
+                        finally:
+                            if os.path.exists(pdf_file):
+                                try:
+                                    os.remove(pdf_file)
+                                except Exception:
+                                    pass
+
+                    # 3. Images (.jpg, .jpeg, .png, .webp)
+                    elif any(ext in url.lower() for ext in [".jpg", ".jpeg", ".png", ".webp"]):
+                        ext = url.split("?")[0].split('.')[-1]
+                        img_file = f"{name1}.{ext}"
+                        try:
+                            cmd_img = f'yt-dlp -o "{img_file}" "{url}"'
+                            subprocess.run(cmd_img, shell=True)
+                            if os.path.exists(img_file):
+                                await bot.send_photo(
+                                    chat_id=target_chat_id,
+                                    photo=img_file,
+                                    caption=cc_img,
+                                    reply_to_message_id=active_topic_id
+                                )
+                                success_count += 1
+                        finally:
+                            if os.path.exists(img_file):
+                                os.remove(img_file)
+
+                    # 4. Audio
+                    elif any(ext in url.lower() for ext in [".mp3", ".wav", ".m4a"]):
+                        ext = url.split("?")[0].split('.')[-1]
+                        audio_file = f"{name1}.{ext}"
+                        try:
+                            cmd_audio = f'yt-dlp -x --audio-format {ext} -o "{audio_file}" "{url}"'
+                            subprocess.run(cmd_audio, shell=True)
+                            if os.path.exists(audio_file):
+                                await bot.send_document(
+                                    chat_id=target_chat_id,
+                                    document=audio_file,
+                                    caption=cc_video,
+                                    file_name=audio_file,
+                                    reply_to_message_id=active_topic_id
+                                )
+                                success_count += 1
+                        finally:
+                            if os.path.exists(audio_file):
+                                os.remove(audio_file)
+
+                    # 5. Encrypted Videos
+                    elif 'encrypted.m' in url:
+                        show_msg = f"<i><b>Video APPX Encrypted Downloading</b></i>\n<blockquote><b>{idx_str}) {name1}</b></blockquote>"
+                        prog = await bot.send_message(target_chat_id, show_msg, disable_web_page_preview=True, reply_to_message_id=active_topic_id)
+                        try:
+                            res_file = await helper.download_and_decrypt_video(url, cmd, name, appxkey)
+                            await prog.delete(True)
+                            if res_file and os.path.exists(res_file):
+                                await helper.send_vid(
+                                    bot, m, cc_video, res_file, thumb, name1, prog,
+                                    target_chat_id, watermark=watermark_val, topic_thread_id=active_topic_id
+                                )
+                                success_count += 1
+                            else:
+                                failed_count += 1
+                        except Exception as e:
+                            failed_count += 1
+                            await bot.send_message(
+                                target_chat_id,
+                                f'⚠️**Downloading Failed**⚠️\n**Name** =>> `{idx_str} {name1}`\n\n<blockquote><i><b>Reason: {e}</b></i></blockquote>',
+                                disable_web_page_preview=True,
+                                reply_to_message_id=active_topic_id
+                            )
+
+                    # 6. DRM MPD Videos
+                    elif 'drmcdni' in url or 'drm/wv' in url or 'drm/common' in url:
+                        show_msg = f"<i><b>📥 Fast Video Downloading</b></i>\n<blockquote><b>{idx_str}) {name1}</b></blockquote>"
+                        prog = await bot.send_message(target_chat_id, show_msg, disable_web_page_preview=True, reply_to_message_id=active_topic_id)
+                        try:
+                            res_file = await helper.decrypt_and_merge_video(mpd, keys_string, path, name, raw_text2)
+                            await prog.delete(True)
+                            if res_file and os.path.exists(res_file):
+                                await helper.send_vid(
+                                    bot, m, cc_video, res_file, thumb, name1, prog,
+                                    target_chat_id, watermark=watermark_val, topic_thread_id=active_topic_id
+                                )
+                                success_count += 1
+                            else:
+                                failed_count += 1
+                        except Exception as e:
+                            failed_count += 1
+                            await bot.send_message(
+                                target_chat_id,
+                                f'⚠️**Downloading Failed**⚠️\n**Name** =>> `{idx_str} {name1}`\n\n<blockquote><i><b>Reason: {e}</b></i></blockquote>',
+                                disable_web_page_preview=True,
+                                reply_to_message_id=active_topic_id
+                            )
+
+                    # 7. General Video (m3u8, mp4, youtube, etc.)
+                    else:
+                        show_msg = f"<i><b>📥 Fast Video Downloading</b></i>\n<blockquote><b>{idx_str}) {name1}</b></blockquote>"
+                        prog = await bot.send_message(target_chat_id, show_msg, disable_web_page_preview=True, reply_to_message_id=active_topic_id)
+                        try:
+                            res_file = await helper.download_video(url, cmd, name)
+                            await prog.delete(True)
+                            if res_file and os.path.exists(res_file):
+                                await helper.send_vid(
+                                    bot, m, cc_video, res_file, thumb, name1, prog,
+                                    target_chat_id, watermark=watermark_val, topic_thread_id=active_topic_id
+                                )
+                                success_count += 1
+                            else:
+                                failed_count += 1
+                        except Exception as e:
+                            failed_count += 1
+                            await bot.send_message(
+                                target_chat_id,
+                                f'⚠️**Downloading Failed**⚠️\n**Name** =>> `{idx_str} {name1}`\n\n<blockquote><i><b>Reason: {e}</b></i></blockquote>',
+                                disable_web_page_preview=True,
+                                reply_to_message_id=active_topic_id
+                            )
+
+                except Exception as e:
+                    failed_count += 1
+                    print(f"Error handling item {name1}: {e}")
+                    try:
                         await bot.send_message(
-                            channel_id,
-                            f'⚠️**Downloading Failed**⚠️\n**Name** =>> `{str(count).zfill(3)} {name1}`\n**Url** =>> {link0}\n\n<blockquote><i><b>Failed Reason: {str(e)}</b></i></blockquote>',
-                            disable_web_page_preview=True)
-                        count += 1
-                        failed_count += 1
-                        continue
-
-                elif 'drmcdni' in url or 'drm/wv' in url or 'drm/common' in url:
-                    Show = f"<i><b>📥 Fast Video Downloading</b></i>\n<blockquote><b>{str(count).zfill(3)}) {name1}</b></blockquote>"
-                    prog = await bot.send_message(
-                        channel_id, Show, disable_web_page_preview=True)
-                    res_file = await helper.decrypt_and_merge_video(
-                        mpd, keys_string, path, name, raw_text2)
-                    filename = res_file
-                    await prog.delete(True)
-                    await helper.send_vid(bot,
-                                          m,
-                                          cc,
-                                          filename,
-                                          thumb,
-                                          name,
-                                          prog,
-                                          channel_id,
-                                          watermark=watermark)
-                    count += 1
-                    await asyncio.sleep(1)
-                    continue
-
-                else:
-                    Show = f"<i><b>📥 Fast Video Downloading</b></i>\n<blockquote><b>{str(count).zfill(3)}) {name1}</b></blockquote>"
-                    prog = await bot.send_message(
-                        channel_id, Show, disable_web_page_preview=True)
-                    res_file = await helper.download_video(url, cmd, name)
-                    filename = res_file
-                    await prog.delete(True)
-                    await helper.send_vid(bot,
-                                          m,
-                                          cc,
-                                          filename,
-                                          thumb,
-                                          name,
-                                          prog,
-                                          channel_id,
-                                          watermark=watermark)
-                    count += 1
-                    time.sleep(1)
-
-            except Exception as e:
-                await bot.send_message(
-                    channel_id,
-                    f'⚠️**Downloading Failed**⚠️\n**Name** =>> `{str(count).zfill(3)} {name1}`\n**Url** =>> {link0}\n\n<blockquote><i><b>Failed Reason: {str(e)}</b></i></blockquote>',
-                    disable_web_page_preview=True)
-                count += 1
-                failed_count += 1
-                continue
+                            target_chat_id,
+                            f'⚠️**Failed:** `{name1}`\n<blockquote>Reason: {e}</blockquote>',
+                            reply_to_message_id=active_topic_id
+                        )
+                    except Exception:
+                        pass
+                await asyncio.sleep(0.5)
 
     except Exception as e:
-        await m.reply_text(e)
-        time.sleep(2)
+        await m.reply_text(f"**Task Error:**\n<blockquote>{e}</blockquote>")
 
-    success_count = len(links) - failed_count
-    video_count = v2_count + mpd_count + m3u8_count + yt_count + drm_count + zip_count + other_count
-    if raw_text7 == "/d":
-        await bot.send_message(
-            channel_id, ("<b>📬 ᴘʀᴏᴄᴇꜱꜱ ᴄᴏᴍᴘʟᴇᴛᴇᴅ</b>\n\n"
-                         "<blockquote><b>📚 ʙᴀᴛᴄʜ ɴᴀᴍᴇ :</b> "
-                         f"{b_name}</blockquote>\n"
-                         "╭────────────────\n"
-                         f"├ 🖇️ ᴛᴏᴛᴀʟ ᴜʀʟꜱ : <code>{len(links)}</code>\n"
-                         f"├ ✅ ꜱᴜᴄᴄᴇꜱꜱꜰᴜʟ : <code>{success_count}</code>\n"
-                         f"├ ❌ ꜰᴀɪʟᴇᴅ : <code>{failed_count}</code>\n"
-                         "╰────────────────\n\n"
-                         "╭──────── 📦 ᴄᴀᴛᴇɢᴏʀʏ ────────\n"
-                         f"├ 🎞️ ᴠɪᴅᴇᴏꜱ : <code>{video_count}</code>\n"
-                         f"├ 📑 ᴘᴅꜰꜱ : <code>{pdf_count}</code>\n"
-                         f"├ 🖼️ ɪᴍᴀɢᴇꜱ : <code>{img_count}</code>\n"
-                         "╰────────────────────────────\n\n"
-                         "<i>ᴇxᴛʀᴀᴄᴛᴇᴅ ʙʏ Rixie 🤖</i>"))
+    # Final Process Summary
+    summary_text = (
+        f"<b>-┈━═.•°✅ Completed ✅°•.═━┈-</b>\n"
+        f"<blockquote><b>🎯 Batch Name : {b_name}</b></blockquote>\n"
+        f"<blockquote>🔗 Total URLs : {total_links_count}\n"
+        f"┃   ┠🟢 Successful : {success_count}\n"
+        f"┃   ┠🔴 Failed     : {failed_count}\n"
+        f"┃   ┃   ┠🎥 Videos : {stats['video']}\n"
+        f"┃   ┃   ┠📄 PDFs   : {stats['pdf']}\n"
+        f"┃   ┃   ┠📸 Images : {stats['image']}\n"
+        f"┃   ┃   ┠🏷️ Topics : {stats['total_topics']}</blockquote>\n\n"
+        f"<i>Extracted & Uploaded by {CREDIT} 🤖</i>"
+    )
 
-    else:
+    try:
         await bot.send_message(
-            channel_id,
-            f"<b>-┈━═.•°✅ Completed ✅°•.═━┈-</b>\n<blockquote><b>🎯Batch Name : {b_name}</b></blockquote>\n<blockquote>🔗 Total URLs: {len(links)} \n┃   ┠🔴 Total Failed URLs: {failed_count}\n┃   ┠🟢 Total Successful URLs: {success_count}\n┃   ┃   ┠🎥 Total Video URLs: {video_count}\n┃   ┃   ┠📄 Total PDF URLs: {pdf_count}\n┃   ┃   ┠📸 Total IMAGE URLs: {img_count}</blockquote>\n"
+            target_chat_id,
+            summary_text,
+            reply_to_message_id=active_topic_id if is_topic_mode else None
         )
-        await bot.send_message(
-            m.chat.id,
-            f"<blockquote><b>✅ Your Task is completed, please check your Set Channel📱</b></blockquote>"
-        )
+        if target_chat_id != m.chat.id:
+            await bot.send_message(
+                m.chat.id,
+                "<blockquote><b>✅ Your Task is completed! All content uploaded successfully.</b></blockquote>"
+            )
+    except Exception as e:
+        print(f"Error sending final summary: {e}")
 
 
 @bot.on_message(

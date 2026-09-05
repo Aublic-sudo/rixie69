@@ -1,3 +1,10 @@
+import sys
+if sys.platform == 'win32':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
 import os
 from datetime import datetime, timedelta
 from typing import Optional, Dict, List, Union
@@ -18,10 +25,6 @@ class Database:
     def __init__(self, max_retries: int = 3, retry_delay: float = 2.0):
         """
         Initialize MongoDB connection with retry logic
-        
-        Args:
-            max_retries: Maximum connection attempts
-            retry_delay: Delay between retries in seconds
         """
         self._print_startup_message()
         self.client: Optional[MongoClient] = None
@@ -29,6 +32,10 @@ class Database:
         self.users: Optional[Collection] = None
         self.settings: Optional[Collection] = None
         
+        if not MONGO_URL:
+            print(f"{Fore.YELLOW}[!] MONGO_URL not provided. Running in offline/fallback mode.{Style.RESET_ALL}")
+            return
+            
         self._connect_with_retry(max_retries, retry_delay)
         
     def _connect_with_retry(self, max_retries: int, retry_delay: float):
@@ -429,7 +436,7 @@ class Database:
         """Close MongoDB connection"""
         if self.client:
             self.client.close()
-            print(f"{Fore.YELLOW}✓ MongoDB connection closed{Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}[+] MongoDB connection closed{Style.RESET_ALL}")
 
     def __enter__(self):
         """Context manager entry"""
@@ -441,12 +448,12 @@ class Database:
 
 # 🔰 Startup Message
 print(f"\n{Fore.CYAN}{'='*50}")
-print(f"🤖 Initializing ITsGOLU_UPLOADER Bot Database")
+print(f"[*] Initializing Bot Database")
 print(f"{'='*50}{Style.RESET_ALL}\n")
 
 # 🔌 Connect to DB with error handling
 try:
     db = Database(max_retries=3, retry_delay=2)
 except Exception as e:
-    print(f"{Fore.RED}✕ Fatal Error: DB initialization failed!{Style.RESET_ALL}")
+    print(f"{Fore.RED}[-] Fatal Error: DB initialization failed!{Style.RESET_ALL}")
     raise
