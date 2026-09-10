@@ -1123,54 +1123,222 @@ async def txt_handler(bot: Client, m: Message):
     & filters.private
     & auth_filter
     & ~filters.command(
-        ["start", "drm", "addlive", "process", "stoplive", "killalllive",
-         "plan", "id", "t2t", "t2h", "logs", "144", "240", "360", "480", "720", "1080"]
+        ["start", "drm", "addlive", "process", "stoplive", "killall", "killalllive",
+         "plan", "id", "t2t", "t2h", "logs", "setlog", "getlog", "cookies", "getcookies", "stop"]
     )
 )
 async def text_handler(bot: Client, m: Message):
     if m.from_user.is_bot:
         return
-    links = m.text
-    path = None
-    match = re.search(r'https?://\S+', links)
-    if match:
-        link = match.group(0)
-    else:
-        await m.reply_text("<pre><code>Invalid link format.</code></pre>")
+
+    raw_text = m.text.strip()
+    match = re.search(r'https?://[^\s]+', raw_text)
+    if not match:
         return
 
-    editable = await m.reply_text(
-        f"<pre><code>**🔹Processing your link...\n🔁Please wait...⏳**</code></pre>"
-    )
-    await m.delete()
+    url = match.group(0)
+    chat_id = m.chat.id
+    user_id = m.from_user.id
+    target_chat_id = chat_id
+    timeout_duration = 60
 
-    await editable.edit(
-        f"╭━━━━❰ᴇɴᴛᴇʀ ʀᴇꜱᴏʟᴜᴛɪᴏɴ❱━━➣ \n┣━━⪼ send `144`\n┣━━⪼ send `240`\n┣━━⪼ send `360`\n┣━━⪼ send `480`\n┣━━⪼ send `720`\n┣━━⪼ send `1080`\n╰━━⌈⚡[`{CREDIT}`]⚡⌋━━➣ "
+    # 1. Ask Caption / File Title
+    ask_name = await m.reply_text(
+        "📝 <b>Enter File / Caption Name:</b>\n"
+        "<i>(Send <code>/d</code> for default name)</i>"
     )
-    input2: Message = await bot.listen(editable.chat.id,
-                                       filters=filters.text
-                                       & filters.user(m.from_user.id))
-    raw_text2 = input2.text
-    quality = f"{raw_text2}p"
-    await input2.delete(True)
     try:
-        if raw_text2 == "144":
-            res = "256x144"
-        elif raw_text2 == "240":
-            res = "426x240"
-        elif raw_text2 == "360":
-            res = "640x360"
-        elif raw_text2 == "480":
-            res = "854x480"
-        elif raw_text2 == "720":
-            res = "1280x720"
-        elif raw_text2 == "1080":
-            res = "1920x1080"
+        input_name: Message = await bot.listen(chat_id, timeout=timeout_duration)
+        raw_name = input_name.text.strip()
+        await input_name.delete(True)
+    except asyncio.TimeoutError:
+        raw_name = '/d'
+    await ask_name.delete(True)
+
+    if raw_name == '/d' or not raw_name:
+        name1 = f"Video_{int(time.time())}"
+    else:
+        name1 = re.sub(r'[\\/*?:"<>|]', "", raw_name).strip()
+
+    # 2. Ask Batch Name
+    ask_batch = await m.reply_text(
+        "📚 <b>Enter Batch Name:</b>\n"
+        "<i>(Send <code>/d</code> for default)</i>"
+    )
+    try:
+        input_batch: Message = await bot.listen(chat_id, timeout=timeout_duration)
+        raw_batch = input_batch.text.strip()
+        await input_batch.delete(True)
+    except asyncio.TimeoutError:
+        raw_batch = '/d'
+    await ask_batch.delete(True)
+
+    b_name = "Direct Download" if (raw_batch == '/d' or not raw_batch) else raw_batch
+
+    # Default settings (No resolution prompt - defaults to 720p/best)
+    raw_text2 = "720"
+    quality = "720p"
+    thumb = "/d"
+    watermark_val = "/d"
+    name = name1[:60]
+    path = f"./downloads/{chat_id}"
+    os.makedirs(path, exist_ok=True)
+
+    # Captions
+    cc_video = (
+        f"<b>🏷️ Tɪᴛʟᴇ :</b> {name1}\n\n"
+        f"<blockquote>📚 𝗕𝗮𝘁𝗰𝗵 : {b_name}</blockquote>\n\n"
+        f"<b>🎓 Extracted by ➤ {CREDIT}</b>"
+    )
+    cc_pdf = (
+        f"<b>📄 Tɪᴛʟᴇ :</b> {name1}\n\n"
+        f"<blockquote>📚 𝗕𝗮𝘁𝗰𝗵 : {b_name}</blockquote>\n\n"
+        f"<b>🎓 Extracted by ➤ {CREDIT}</b>"
+    )
+
+    prog = await m.reply_text(
+        f"⏳ <b>Downloading Started...</b>\n"
+        f"<blockquote><b>{name1}</b></blockquote>",
+        disable_web_page_preview=True
+    )
+
+    try:
+        # Appx / ClassX URL transformations
+        if "https://static-trans-v1.classx.co.in" in url or "https://static-trans-v2.classx.co.in" in url:
+            if "*" in url:
+                base_with_params, signature = url.split("*", 1)
+                base_clean = base_with_params.split(".mkv")[0] + ".mkv"
+                if "static-trans-v1.classx.co.in" in url:
+                    base_clean = base_clean.replace("https://static-trans-v1.classx.co.in", "https://appx-transcoded-videos-mcdn.akamai.net.in")
+                else:
+                    base_clean = base_clean.replace("https://static-trans-v2.classx.co.in", "https://transcoded-videos-v2.classx.co.in")
+                url = f"{base_clean}*{signature}"
+
+        elif "https://static-rec.classx.co.in/drm/" in url:
+            if "*" in url:
+                base_with_params, signature = url.split("*", 1)
+                base_clean = base_with_params.split("?")[0].replace("https://static-rec.classx.co.in", "https://appx-recordings-mcdn.akamai.net.in")
+                url = f"{base_clean}*{signature}"
+
+        elif "https://static-wsb.classx.co.in/" in url:
+            url = url.split("?")[0].replace("https://static-wsb.classx.co.in", "https://appx-wsb-gcp-mcdn.akamai.net.in")
+
+        elif "https://static-db.classx.co.in/" in url:
+            if "*" in url:
+                base_url, key = url.split("*", 1)
+                base_url = base_url.split("?")[0].replace("https://static-db.classx.co.in", "https://appxcontent.kaxa.in")
+                url = f"{base_url}*{key}"
+            else:
+                url = url.split("?")[0].replace("https://static-db.classx.co.in", "https://appxcontent.kaxa.in")
+
+        elif "https://static-db-v2.classx.co.in/" in url:
+            if "*" in url:
+                base_url, key = url.split("*", 1)
+                base_url = base_url.split("?")[0].replace("https://static-db-v2.classx.co.in", "https://appx-content-v2.classx.co.in")
+                url = f"{base_url}*{key}"
+            else:
+                url = url.split("?")[0].replace("https://static-db-v2.classx.co.in", "https://appx-content-v2.classx.co.in")
+
+        # 1. PDF Downloads
+        if ".pdf" in url:
+            pdf_file = f"{name1}.pdf"
+            try:
+                await helper.download_pdf_safe(url, pdf_file)
+                if os.path.exists(pdf_file):
+                    await bot.send_document(
+                        chat_id=target_chat_id,
+                        document=pdf_file,
+                        caption=cc_pdf,
+                        file_name=pdf_file
+                    )
+            finally:
+                if os.path.exists(pdf_file):
+                    os.remove(pdf_file)
+            await prog.delete(True)
+            return
+
+        # 2. Encrypted Video (Appx / ClassX)
+        if 'encrypted.m' in url:
+            appxkey = ""
+            if '*' in url:
+                url, appxkey = url.split('*', 1)
+
+            ytf = "b/bv+ba"
+            cmd = f'yt-dlp --add-header "Referer:https://appx-play.classx.co.in/" -f "{ytf}" "{url}" -o "{name}.mp4"'
+            
+            res_file = await helper.download_and_decrypt_video(url, cmd, name, appxkey)
+            await prog.delete(True)
+
+            if res_file and os.path.exists(res_file):
+                await helper.send_vid(
+                    bot, m, cc_video, res_file, thumb, name1, prog,
+                    target_chat_id, watermark=watermark_val
+                )
+                if os.path.exists(res_file):
+                    os.remove(res_file)
+            else:
+                await m.reply_text("❌ <b>Download Failed!</b> (Encrypted Video)")
+            return
+
+        # 3. DRM MPD Videos (Classplus etc.)
+        if any(x in url for x in ["drmcdni", "drm/wv", "drm/common", "cpvod.testbook.com", "classplusapp.com"]):
+            url_norm = url.replace("https://cpvod.testbook.com/", "https://media-cdn.classplusapp.com/drm/")
+            api_url_call = f"https://itsgolu-cp-api.vercel.app/itsgolu?url={url_norm}@ITSGOLU_OFFICIAL&user_id={user_id}"
+            keys_string = ""
+            mpd = url
+            try:
+                resp = requests.get(api_url_call, timeout=30)
+                data = resp.json() if resp.status_code == 200 else None
+                if isinstance(data, dict) and "KEYS" in data and "MPD" in data:
+                    mpd = data.get("MPD")
+                    keys = data.get("KEYS", [])
+                    keys_string = " ".join([f"--key {k}" for k in keys])
+                elif isinstance(data, dict) and "url" in data:
+                    mpd = data.get("url")
+            except Exception:
+                pass
+
+            res_file = await helper.decrypt_and_merge_video(mpd, keys_string, path, name, raw_text2)
+            await prog.delete(True)
+
+            if res_file and os.path.exists(res_file):
+                await helper.send_vid(
+                    bot, m, cc_video, res_file, thumb, name1, prog,
+                    target_chat_id, watermark=watermark_val
+                )
+                if os.path.exists(res_file):
+                    os.remove(res_file)
+            else:
+                await m.reply_text("❌ <b>DRM Decryption/Download Failed!</b>")
+            return
+
+        # 4. General Videos (YouTube, M3U8, MP4, etc.)
+        if "youtu" in url:
+            ytf = f"bv*[height<=720][ext=mp4]+ba[ext=m4a]/b[height<=?720]"
+            cmd = f'yt-dlp -f "{ytf}" "{url}" -o "{name}.mp4"'
         else:
-            res = "UN"
-    except Exception:
-        res = "UN"
-    # ... rest of the function logic would continue here ...
+            ytf = "b[height<=720]/bv[height<=720]+ba/b/bv+ba"
+            cmd = f'yt-dlp --add-header "Referer:https://appx-play.classx.co.in/" -f "{ytf}" "{url}" -o "{name}.mp4"'
+
+        res_file = await helper.download_video(url, cmd, name)
+        await prog.delete(True)
+
+        if res_file and os.path.exists(res_file):
+            await helper.send_vid(
+                bot, m, cc_video, res_file, thumb, name1, prog,
+                target_chat_id, watermark=watermark_val
+            )
+            if os.path.exists(res_file):
+                os.remove(res_file)
+        else:
+            await m.reply_text("❌ <b>Download Failed!</b>")
+
+    except Exception as e:
+        try:
+            await prog.delete(True)
+        except Exception:
+            pass
+        await m.reply_text(f"⚠️ <b>Error:</b> <code>{str(e)}</code>")
 
 
 # New Callback Handlers for the buttons
