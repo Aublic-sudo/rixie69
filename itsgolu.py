@@ -362,6 +362,7 @@ async def download_video(url, cmd, name):
     retry = 0
 
     referers = [
+        "https://appx-play.classx.co.in/",
         "https://nirmitacademy.akamai.net.in/",
         "https://test.classx.co.in/",
         "https://acadmy.akamai.net.in/",
@@ -434,10 +435,411 @@ async def download_video(url, cmd, name):
             except:
                 pass
 
-    return None
+        return None
 
 
+async def download_and_decrypt_video(url, cmd, name, appxkey=""):
+    if appxkey:
+        try:
+            import base64
+            cleaned_k = str(appxkey).strip()
+            if len(cleaned_k) % 4 == 0 and re.match(r"^[A-Za-z0-9+/]+=*$", cleaned_k):
+                dec_k = base64.b64decode(cleaned_k).decode("utf-8", errors="ignore")
+                if dec_k and all(32 <= ord(c) <= 126 for c in dec_k):
+                    appxkey = dec_k
+        except Exception:
+            pass
 
+    if "appx" in url or "classx" in url:
+        if "--add-header" not in cmd or "Referer" not in cmd:
+            cmd = f'{cmd} --add-header "Referer:https://appx-play.classx.co.in/"'
+
+    file_path = await download_video(url, cmd, name)
+
+    if not file_path or not os.path.exists(file_path):
+        for out_name in [f"{name}.mp4", f"{name}.mkv"]:
+            try:
+                dl_cmd = (
+                    f'curl -L -s -k '
+                    f'-H "Referer: https://appx-play.classx.co.in/" '
+                    f'-H "User-Agent: Mozilla/5.0" '
+                    f'"{url}" -o "{out_name}"'
+                )
+                subprocess.run(dl_cmd, shell=True)
+                if os.path.exists(out_name) and os.path.getsize(out_name) > 1000:
+                    file_path = out_name
+                    break
+            except Exception:
+                pass
+
+    if not file_path or not os.path.exists(file_path):
+        return None
+
+    try:
+        if appxkey and os.path.exists(file_path) and os.path.getsize(file_path) > 32:
+            with open(file_path, "r+b") as f:
+                header = f.read(64)
+                if not (header.startswith(b"\x1a\x45\xdf\xa3") or b"ftyp" in header[:16]):
+                    k_bytes = str(appxkey).encode("utf-8")
+                    if bytes([header[i] ^ k_bytes[i % len(k_bytes)] for i in range(min(4, len(k_bytes)))]) == b"\x1a\x45\xdf\xa3":
+                        f.seek(0)
+                        data = bytearray(f.read())
+                        for i in range(len(data)):
+                            data[i] ^= k_bytes[i % len(k_bytes)]
+                        f.seek(0)
+                        f.write(data)
+                        f.truncate()
+    except Exception as e:
+        print(f"Decryption check error: {e}")
+
+    if file_path and os.path.exists(file_path):
+        if file_path.endswith(".mkv"):
+            mp4_file = f"{name}.mp4"
+            if not os.path.exists(mp4_file):
+                try:
+                    subprocess.run(
+                        f'ffmpeg -y -i "{file_path}" -c copy -movflags +faststart "{mp4_file}"',
+                        shell=True,
+                        capture_output=True
+                    )
+                    if os.path.exists(mp4_file) and os.path.getsize(mp4_file) > 1000:
+                        try:
+                            os.remove(file_path)
+                        except Exception:
+                            pass
+                        file_path = mp4_file
+                except Exception:
+                    pass
+
+    return file_path
+
+
+async def send_vid(bot: Client, m: Message, cc, filename, thumb, name, prog, channel_id, watermark="𝐈𝐓'𝐬𝐆𝐎𝐋𝐔", topic_thread_id: int = None):
+    try:
+        temp_thumb = None  # ✅ Ensure this is always defined for later cleanup
+
+        thumbnail = thumb
+        if thumb in ["/d", "no"] or not os.path.exists(thumb):
+            temp_thumb = f"downloads/thumb_{os.path.basename(filename)}.jpg"
+            
+            # Generate thumbnail at 10s
+            subprocess.run(
+                f'ffmpeg -i "{filename}" -ss 00:00:10 -vframes 1 -q:v 2 -y "{temp_thumb}"',
+                shell=True
+            )
+
+            # ✅ Only apply watermark if watermark != "/d"
+            if os.path.exists(temp_thumb) and (watermark and watermark.strip() != "/d"):
+                text_to_draw = watermark.strip()
+                try:
+                    # Probe image width for better scaling
+                    probe_out = subprocess.check_output(
+                        f'ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0:s=x "{temp_thumb}"',
+                        shell=True,
+                        stderr=subprocess.DEVNULL,
+                    ).decode().strip()
+                    img_width = int(probe_out.split('x')[0]) if 'x' in probe_out else int(probe_out)
+                except Exception:
+                    img_width = 1280
+
+                # Base size relative to width, then adjust by text length
+                base_size = max(28, int(img_width * 0.075))
+                text_len = len(text_to_draw)
+                if text_len <= 3:
+                    font_size = int(base_size * 1.25)
+                elif text_len <= 8:
+                    font_size = int(base_size * 1.0)
+                elif text_len <= 15:
+                    font_size = int(base_size * 0.85)
+                else:
+                    font_size = int(base_size * 0.7)
+                font_size = max(32, min(font_size, 120))
+
+                box_h = max(60, int(font_size * 1.6))
+
+                # Simple escaping for single quotes in text
+                safe_text = text_to_draw.replace("'", "\\'")
+
+                text_cmd = (
+                    f'ffmpeg -i "{temp_thumb}" -vf '
+                    f'"drawbox=y=0:color=black@0.35:width=iw:height={box_h}:t=fill,'
+                    f'drawtext=fontfile=font.ttf:text=\'{safe_text}\':fontcolor=white:'
+                    f'fontsize={font_size}:x=(w-text_w)/2:y=(({box_h})-text_h)/2" '
+                    f'-c:v mjpeg -q:v 2 -y "{temp_thumb}"'
+                )
+                subprocess.run(text_cmd, shell=True)
+            
+            thumbnail = temp_thumb if os.path.exists(temp_thumb) else None
+
+        await prog.delete(True)  # ⏳ Remove previous progress message
+
+        reply1 = await bot.send_message(channel_id, f" **Uploading Video:**\n<blockquote>{name}</blockquote>")
+        reply = await m.reply_text(f"🖼 **Generating Thumbnail:**\n<blockquote>{name}</blockquote>")
+
+        file_size_mb = os.path.getsize(filename) / (1024 * 1024)
+        notify_split = None
+        sent_message = None
+
+        if file_size_mb < 2000:
+            # 📹 Upload as single video
+            dur = int(duration(filename))
+            start_time = time.time()
+
+            try:
+                sent_message = await bot.send_video(
+                    chat_id=channel_id,
+                    video=filename,
+                    caption=cc,
+                    supports_streaming=True,
+                    height=720,
+                    width=1280,
+                    thumb=thumbnail,
+                    duration=dur,
+                    progress=progress_bar,
+                    progress_args=(reply, start_time),
+                    reply_to_message_id=topic_thread_id
+                )
+            except Exception:
+                sent_message = await bot.send_document(
+                    chat_id=channel_id,
+                    document=filename,
+                    caption=cc,
+                    progress=progress_bar,
+                    progress_args=(reply, start_time),
+                    reply_to_message_id=topic_thread_id
+                )
+
+            # ✅ Cleanup
+            if os.path.exists(filename):
+                os.remove(filename)
+            await reply.delete(True)
+            await reply1.delete(True)
+
+        else:
+            # ⚠️ Notify about splitting
+            notify_split = await m.reply_text(
+                f"⚠️ The video is larger than 2GB ({human_readable_size(os.path.getsize(filename))})\n"
+                f"⏳ Splitting into parts before upload..."
+            )
+
+            parts = split_large_video(filename)
+
+            try:
+                first_part_message = None
+                for idx, part in enumerate(parts):
+                    part_dur = int(duration(part))
+                    part_num = idx + 1
+                    total_parts = len(parts)
+                    part_caption = f"{cc}\n\n📦 Part {part_num} of {total_parts}"
+                    part_filename = f"{name}_Part{part_num}.mp4"
+
+                    upload_msg = await m.reply_text(f"📤 Uploading Part {part_num}/{total_parts}...")
+
+                    try:
+                        msg_obj = await bot.send_video(
+                            chat_id=channel_id,
+                            video=part,
+                            caption=part_caption,
+                            file_name=part_filename,
+                            supports_streaming=True,
+                            height=720,
+                            width=1280,
+                            thumb=thumbnail,
+                            duration=part_dur,
+                            progress=progress_bar,
+                            progress_args=(upload_msg, time.time()),
+                            reply_to_message_id=topic_thread_id
+                        )
+                        if first_part_message is None:
+                            first_part_message = msg_obj
+                    except Exception:
+                        msg_obj = await bot.send_document(
+                            chat_id=channel_id,
+                            document=part,
+                            caption=part_caption,
+                            file_name=part_filename,
+                            progress=progress_bar,
+                            progress_args=(upload_msg, time.time()),
+                            reply_to_message_id=topic_thread_id
+                        )
+                        if first_part_message is None:
+                            first_part_message = msg_obj
+
+                    await upload_msg.delete(True)
+                    if os.path.exists(part):
+                        os.remove(part)
+
+            except Exception as e:
+                raise Exception(f"Upload failed at part {idx + 1}: {str(e)}")
+
+            # ✅ Final messages
+            if len(parts) > 1:
+                await m.reply_text("✅ Large video successfully uploaded in multiple parts!")
+
+            # Cleanup after split
+            await reply.delete(True)
+            await reply1.delete(True)
+            if notify_split:
+                await notify_split.delete(True)
+            if os.path.exists(filename):
+                os.remove(filename)
+
+            # Return first sent part message
+            sent_message = first_part_message
+
+        # 🧹 Cleanup generated thumbnail if applicable
+        if thumb in ["/d", "no"] and temp_thumb and os.path.exists(temp_thumb):
+            os.remove(temp_thumb)
+
+        return sent_message
+
+    except Exception as err:
+        raise Exception(f"send_vid failed: {err}")
+
+
+async def download_pdf_safe(url: str, file_name: str, referers: list = None) -> str:
+    """Robust PDF downloader: tries direct request first (crucial for signed Akamai URLs), then referers."""
+    if os.path.exists(file_name):
+        try:
+            os.remove(file_name)
+        except Exception:
+            pass
+
+    url = url.replace(" ", "%20")
+    scraper = cloudscraper.create_scraper()
+
+    # Step 1: Try clean direct request (no referer, standard browser UA)
+    headers_direct = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,application/pdf,*/*;q=0.8"
+    }
+    try:
+        resp = scraper.get(url, headers=headers_direct, stream=True, timeout=30)
+        if resp.status_code == 200:
+            with open(file_name, "wb") as f:
+                for chunk in resp.iter_content(1024 * 1024):
+                    if chunk:
+                        f.write(chunk)
+            if os.path.exists(file_name) and os.path.getsize(file_name) > 0:
+                return file_name
+    except Exception:
+        pass
+
+    # Step 2: Try referers
+    fallback_referers = referers or [
+        "https://nirmitacademy.akamai.net.in/",
+        "https://test.classx.co.in/",
+        "https://acadmy.akamai.net.in/",
+        "https://test.akamai.net.in/"
+    ]
+    for ref in fallback_referers:
+        try:
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Referer": ref
+            }
+            resp = scraper.get(url, headers=headers, stream=True, timeout=30)
+            if resp.status_code == 200:
+                with open(file_name, "wb") as f:
+                    for chunk in resp.iter_content(1024 * 1024):
+                        if chunk:
+                            f.write(chunk)
+                if os.path.exists(file_name) and os.path.getsize(file_name) > 0:
+                    return file_name
+        except Exception:
+            continue
+
+    # Step 3: Aiohttp fallback
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
+                if resp.status == 200:
+                    with open(file_name, "wb") as f:
+                        while True:
+                            chunk = await resp.content.read(1024 * 1024)
+                            if not chunk:
+                                break
+                            f.write(chunk)
+                    if os.path.exists(file_name) and os.path.getsize(file_name) > 0:
+                        return file_name
+    except Exception:
+        pass
+
+    raise Exception(f"Failed to download PDF from {url[:80]}...")
+, cleaned_k):
+                dec_k = base64.b64decode(cleaned_k).decode('utf-8', errors='ignore')
+                if dec_k and all(32 <= ord(c) <= 126 for c in dec_k):
+                    appxkey = dec_k
+        except Exception:
+            pass
+
+    # 2. Add referer for appx/classx links
+    if "appx" in url or "classx" in url:
+        if "--add-header" not in cmd or "Referer" not in cmd:
+            cmd = f'{cmd} --add-header "Referer:https://appx-play.classx.co.in/"'
+
+    # 3. Download the video using download_video
+    file_path = await download_video(url, cmd, name)
+
+    # 4. Fallback direct download via curl if yt-dlp failed
+    if not file_path or not os.path.exists(file_path):
+        for out_name in [f"{name}.mp4", f"{name}.mkv"]:
+            try:
+                dl_cmd = (
+                    f'curl -L -s -k '
+                    f'-H "Referer: https://appx-play.classx.co.in/" '
+                    f'-H "User-Agent: Mozilla/5.0" '
+                    f'"{url}" -o "{out_name}"'
+                )
+                subprocess.run(dl_cmd, shell=True)
+                if os.path.exists(out_name) and os.path.getsize(out_name) > 1000:
+                    file_path = out_name
+                    break
+            except Exception:
+                pass
+
+    if not file_path or not os.path.exists(file_path):
+        return None
+
+    # 5. Check if file is encrypted and decrypt if appxkey provided
+    try:
+        if appxkey and os.path.exists(file_path) and os.path.getsize(file_path) > 32:
+            with open(file_path, "r+b") as f:
+                header = f.read(64)
+                if not (header.startswith(b'\x1a\x45\xdf\xa3') or b'ftyp' in header[:16]):
+                    k_bytes = str(appxkey).encode('utf-8')
+                    if bytes([header[i] ^ k_bytes[i % len(k_bytes)] for i in range(min(4, len(k_bytes)))]) == b'\x1a\x45\xdf\xa3':
+                        f.seek(0)
+                        data = bytearray(f.read())
+                        for i in range(len(data)):
+                            data[i] ^= k_bytes[i % len(k_bytes)]
+                        f.seek(0)
+                        f.write(data)
+                        f.truncate()
+    except Exception as e:
+        print(f"Decryption check error: {e}")
+
+    # 6. Normalize / remux to mp4 if needed
+    if file_path and os.path.exists(file_path):
+        if file_path.endswith(".mkv"):
+            mp4_file = f"{name}.mp4"
+            if not os.path.exists(mp4_file):
+                try:
+                    subprocess.run(
+                        f'ffmpeg -y -i "{file_path}" -c copy -movflags +faststart "{mp4_file}"',
+                        shell=True,
+                        capture_output=True
+                    )
+                    if os.path.exists(mp4_file) and os.path.getsize(mp4_file) > 1000:
+                        try:
+                            os.remove(file_path)
+                        except Exception:
+                            pass
+                        file_path = mp4_file
+                except Exception:
+                    pass
+
+    return file_path
 
 
 async def send_vid(bot: Client, m: Message, cc, filename, thumb, name, prog, channel_id, watermark="𝐈𝐓'𝐬𝐆𝐎𝐋𝐔", topic_thread_id: int = None):
