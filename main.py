@@ -1453,7 +1453,7 @@ def fetch_live(api_base, course_id):
                     sid = item.get("recording_schedule")
 
                     if sid:
-                        url = f"https://liveclasses.cloud-front.in/live/{sid}_480p.m3u8"
+                        url = f"https://pull-dq.classx.co.in/live/{sid}_pulldq480.m3u8?request_llhls=1"
                         return title, sid, url
 
         except:
@@ -1484,7 +1484,7 @@ def fetch_live(api_base, course_id):
                 # ✅ cache working endpoint
                 ENDPOINT_CACHE[course_id] = ep
 
-                url = f"https://liveclasses.cloud-front.in/live/{sid}_480p.m3u8"
+                url = f"https://pull-dq.classx.co.in/live/{sid}_pulldq480.m3u8?request_llhls=1"
 
                 return title, sid, url
 
@@ -1654,7 +1654,7 @@ def fetch_live(api_base, course_id):
                     title = item.get("Title", "LIVE")
                     sid = item.get("recording_schedule")
                     if sid:
-                        url = f"https://liveclasses.cloud-front.in/live/{sid}_480p.m3u8"
+                        url = f"https://pull-dq.classx.co.in/live/{sid}_pulldq480.m3u8?request_llhls=1"
                         return title, sid, url
         except:
             pass
@@ -1676,7 +1676,7 @@ def fetch_live(api_base, course_id):
                     return None, None, None
 
                 ENDPOINT_CACHE[course_id] = ep
-                url = f"https://liveclasses.cloud-front.in/live/{sid}_480p.m3u8"
+                url = f"https://pull-dq.classx.co.in/live/{sid}_pulldq480.m3u8?request_llhls=1"
                 return title, sid, url
 
         except Exception as e:
